@@ -1,0 +1,60 @@
+📂 Loaded binary file: kernel/kernel.bin (8500 bytes)
+🔌 Registered MMIO device: UART at 0x10000000
+🔌 Registered MMIO device: Timer at 0x10001000
+🔌 Registered MMIO device: Framebuffer at 0x10003000
+🔌 Registered MMIO device: Keyboard at 0x14000000
+🖥️  Multi-Core RISC-V System initialized
+   Cores: 1
+   Memory: 8 MB
+   Memory latency: 1 cycle(s)
+   Bus arbitration: disabled
+   L1 Cache: enabled
+   Start PC: 0x1000
+
+📂 Program loaded at 0x1000 (8500 bytes)
+
+🚀 Starting single-core execution (Core 0)...
+   Max cycles: 5000000
+
+
+=============================================================
+📊 Single-Core Execution Summary
+=============================================================
+⚠️  Max cycles (5000000) reached
+
+Core 0 Status:
+  PC: 0x2DEC
+  Cycles: 5000000
+  Instructions: 314958
+  CPI: 15.875132557356855
+  Branches: 11665 taken, 19443 not taken
+  Halted: false
+
+L1 Cache Statistics:
+  Total accesses: 0
+  Hits: 0
+  Misses: 0
+  Evictions: 0
+  Hit rate: 0.00%
+  Miss rate: 0.00%
+  Average access time: 11.00 cycles
+
+Register Contents:
+  x1 (ra  ) = 4124
+  x5 (t0  ) = 10
+  x6 (t1  ) = 4
+  x7 (t2  ) = 8
+  x10 (a0  ) = 10
+  x11 (a1  ) = 50
+  x13 (a3  ) = 16781311
+  x14 (a4  ) = 4
+  x30 (t5  ) = 5
+  x31 (t6  ) = 268447744
+
+Memory Bus Statistics:
+  Total requests: 5042771
+  Reads: 5027218
+  Writes: 15553
+
+Branch Prediction:
+  No branch predictions

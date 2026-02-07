@@ -1,0 +1,48 @@
+# Leenux OS - Git Ignores
+
+# Build outputs
+bin/risc-emulator
+*.bin
+*.o
+*.out
+
+# Swift build
+.build/
+*.swiftmodule
+*.swiftdoc
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+*.dSYM/
+
+# Backup files
+*.bak
+*.bak2
+*.old
+
+# Temporary files
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+
+# Test outputs
+test/*.bin
+test/output_*
+
+# Gemini artifacts (keep source docs)
+# Gemini artifacts (keep source docs)
+.gemini/
+
+# Disk images
+disk.img
+*.img

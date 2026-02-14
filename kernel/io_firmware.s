@@ -16,11 +16,11 @@ _start:
     
     # Print startup message
     li a0, 0x10000000     # UART base
-    li a1, 'I'
+    li a1, 73             # 'I'
     sb a1, 0(a0)
-    li a1, 'O'
+    li a1, 79             # 'O'
     sb a1, 0(a0)
-    li a1, '\n'
+    li a1, 10             # '\n'
     sb a1, 0(a0)
 
 io_loop:
@@ -48,11 +48,6 @@ cmd_print_char:
     lw a1, 4(t0)          # Load char from arg0
     li a0, 0x10000000     # UART base
     sb a1, 0(a0)
-    
-    # Debug: Also print '.' to show command was processed
-    li a1, '.'
-    sb a1, 0(a0)
-    
     j clear_command
 
 cmd_write_pixel:

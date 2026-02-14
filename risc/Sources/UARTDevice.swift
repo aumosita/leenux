@@ -21,9 +21,6 @@ class UARTDevice: MMIODevice {
     private var rxBuffer: [UInt8] = []
     private let bufferLock = NSLock()
     
-    /// DEBUG: 출력 횟수
-    private var writeCount = 0
-    
     /// 출력 콜백 (호스트로 전달)
     var outputCallback: ((UInt8) -> Void)?
     
@@ -65,17 +62,9 @@ class UARTDevice: MMIODevice {
         switch offset {
         case 0x00:
             // TX Data
-            writeCount += 1
-            // Print to stderr with explicit formatting
             let char = String(UnicodeScalar(value))
             fputs(char, stderr)
             fflush(stderr)
-            
-            // DEBUG: Print count every 10 writes
-            if writeCount % 10 == 0 {
-                fputs("[UART:\(writeCount)]", stderr)
-                fflush(stderr)
-            }
             return true
             
         case 0x04:

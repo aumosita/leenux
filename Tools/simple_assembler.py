@@ -51,7 +51,8 @@ CSR_MAP = {
     'mepc': 0x341, 'mcause': 0x342, 'mtval': 0x343, 'mip': 0x344,
     'sstatus': 0x100, 'sie': 0x104, 'stvec': 0x105, 'scause': 0x142,
     'stval': 0x143, 'sip': 0x144, 'satp': 0x180,
-    'pmpcfg0': 0x3A0, 'pmpaddr0': 0x3B0, 'cycle': 0xC00, 'time': 0xC01, 'instret': 0xC02
+    'pmpcfg0': 0x3A0, 'pmpaddr0': 0x3B0, 'cycle': 0xC00, 'time': 0xC01, 'instret': 0xC02,
+    'mhartid': 0xF14
 }
 
 LABELS = {}
@@ -188,6 +189,17 @@ def assemble_line(line, pc, labels):
     if op == 'ecall': return struct.pack('<I', 0x00000073)
     if op == 'ebreak': return struct.pack('<I', 0x00100073)
     if op == 'mret': return struct.pack('<I', 0x30200073)
+    
+    # Atomic
+    if op in ['lr.w', 'lr.d']:
+        rd = parse_reg(args[0]); rs1 = parse_reg(args[1])
+        f3 = 2 if op == 'lr.w' else 3
+        return struct.pack('<I', (0x02 << 27) | (rs1 << 15) | (f3 << 12) | (rd << 7) | 0x2F)
+    if op in ['sc.w', 'sc.d']:
+        rd = parse_reg(args[0]); rs2 = parse_reg(args[1]); rs1 = parse_reg(args[2])
+        f3 = 2 if op == 'sc.w' else 3
+        return struct.pack('<I', (0x03 << 27) | (rs2 << 20) | (rs1 << 15) | (f3 << 12) | (rd << 7) | 0x2F)
+        
     return b""
 
 def assemble(src, dst, base=0):

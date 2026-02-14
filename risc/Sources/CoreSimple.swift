@@ -99,6 +99,9 @@ class CoreSimple {
         self.enableCache = enableCache
         self.state = CoreSimpleState(startPC: startPC)
         
+        // Initialize mhartid (0xF14)
+        self.state.csr[0xF14] = UInt64(id)
+        
         if enableCache {
             self.l1Cache = L1Cache()
         }

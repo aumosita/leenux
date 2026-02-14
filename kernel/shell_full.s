@@ -434,5 +434,3 @@ val_hello_name: .asciz "hello.txt"
 cmd_length: .word 0
 command_line: .space 128
 sector_buffer: .space 512
-
-.align 4

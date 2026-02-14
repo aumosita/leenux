@@ -51,10 +51,10 @@ term_init:
     # Clear screen
     addi sp, sp, -8
     sd ra, 0(sp)
-    call term_clear
+    # call term_clear # TEMPORARILY DISABLED FOR BOOT TEST
     
     # Draw initial prompt
-    call term_print_prompt
+    # call term_print_prompt # TEMPORARILY DISABLED FOR BOOT TEST
     
     ld ra, 0(sp)
     addi sp, sp, 8

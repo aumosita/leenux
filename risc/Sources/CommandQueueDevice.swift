@@ -1,3 +1,5 @@
+import Foundation
+
 /// Shared Memory Command Queue Device
 /// 
 /// MMIO device that provides command queue interface

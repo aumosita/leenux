@@ -22,7 +22,10 @@ class CoreSimpleOptimized {
     // OPTIMIZATION 1: LRU Decode Cache
     private var decodeCache = LRUDecodeCache(capacity: 50000)
     
-    // OPTIMIZATION 2: Instruction buffer for batch execution
+    // OPTIMIZATION 2: Memory Block Cache
+    private var memoryCache: MemoryBlockCache!
+    
+    // OPTIMIZATION 3: Instruction buffer for batch execution
     private var instrBuffer: [UInt32] = []
     private let bufferSize = 16
     
@@ -31,6 +34,9 @@ class CoreSimpleOptimized {
         self.memoryBus = memoryBus
         self.pc = startPC
         self.registers = Array(repeating: 0, count: 32)
+        
+        // Initialize memory cache after properties are set
+        self.memoryCache = MemoryBlockCache(memoryBus: memoryBus, coreId: id, capacity: 128)
     }
     
     // MARK: - Optimized Execution
@@ -84,13 +90,13 @@ class CoreSimpleOptimized {
         registers[0] = 0
     }
     
-    // MARK: - Fetch with Buffering
+    // MARK: - Fetch with Memory Block Caching
     
     private func fillInstructionBuffer() {
         var fetchPC = pc
         
         for _ in 0..<bufferSize {
-            guard let instruction = memoryBus.read32(coreId: id, address: fetchPC) else {
+            guard let instruction = memoryCache.read32(fetchPC) else {
                 break
             }
             instrBuffer.append(instruction)
@@ -99,7 +105,7 @@ class CoreSimpleOptimized {
     }
     
     private func fetch() -> UInt32 {
-        return memoryBus.read32(coreId: id, address: pc) ?? 0
+        return memoryCache.read32(pc) ?? 0
     }
     
     // MARK: - Decode with LRU Caching
@@ -211,10 +217,18 @@ class CoreSimpleOptimized {
         print("Cycles: \(cyclesExecuted)")
         print("Instructions: \(instructionsExecuted)")
         print("CPI: \(String(format: "%.2f", Double(cyclesExecuted) / Double(instructionsExecuted)))")
+        
         print("\nLRU Decode Cache:")
         print("  Hits: \(decodeCache.hits)")
         print("  Misses: \(decodeCache.misses)")
         print("  Hit Rate: \(String(format: "%.1f%%", decodeCache.hitRate))")
         print("  Cache Size: \(decodeCache.count) / 50,000 entries")
+        
+        print("\nMemory Block Cache:")
+        print("  Hits: \(memoryCache.hits)")
+        print("  Misses: \(memoryCache.misses)")
+        print("  Hit Rate: \(String(format: "%.1f%%", memoryCache.hitRate))")
+        print("  Blocks Cached: \(memoryCache.count) / 128 blocks")
+        print("  Memory Used: \(memoryCache.memoryUsed / 1024) KB")
     }
 }

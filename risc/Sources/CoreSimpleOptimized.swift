@@ -19,10 +19,8 @@ class CoreSimpleOptimized {
     var cyclesExecuted: Int = 0
     var instructionsExecuted: Int = 0
     
-    // OPTIMIZATION 1: Decode Cache
-    private var decodeCache: [UInt32: Instruction] = [:]
-    private var cacheHits: Int = 0
-    private var cacheMisses: Int = 0
+    // OPTIMIZATION 1: LRU Decode Cache
+    private var decodeCache = LRUDecodeCache(capacity: 50000)
     
     // OPTIMIZATION 2: Instruction buffer for batch execution
     private var instrBuffer: [UInt32] = []
@@ -104,21 +102,15 @@ class CoreSimpleOptimized {
         return memoryBus.read32(coreId: id, address: pc) ?? 0
     }
     
-    // MARK: - Decode with Caching
+    // MARK: - Decode with LRU Caching
     
     private func decodeCached(_ raw: UInt32) -> Instruction {
-        if let cached = decodeCache[raw] {
-            cacheHits += 1
+        if let cached = decodeCache.get(raw) {
             return cached
         }
         
-        cacheMisses += 1
         let decoded = Instruction.decode(raw: raw)
-        
-        // Cache limit to avoid unbounded growth
-        if decodeCache.count < 10000 {
-            decodeCache[raw] = decoded
-        }
+        decodeCache.put(raw, decoded)
         
         return decoded
     }
@@ -215,16 +207,14 @@ class CoreSimpleOptimized {
     // MARK: - Statistics
     
     func printStats() {
-        let cacheHitRate = Double(cacheHits) / Double(cacheHits + cacheMisses) * 100
-        
         print("\n=== Core \(id) Optimization Statistics ===")
         print("Cycles: \(cyclesExecuted)")
         print("Instructions: \(instructionsExecuted)")
         print("CPI: \(String(format: "%.2f", Double(cyclesExecuted) / Double(instructionsExecuted)))")
-        print("\nDecode Cache:")
-        print("  Hits: \(cacheHits)")
-        print("  Misses: \(cacheMisses)")
-        print("  Hit Rate: \(String(format: "%.1f%%", cacheHitRate))")
-        print("  Cache Size: \(decodeCache.count) entries")
+        print("\nLRU Decode Cache:")
+        print("  Hits: \(decodeCache.hits)")
+        print("  Misses: \(decodeCache.misses)")
+        print("  Hit Rate: \(String(format: "%.1f%%", decodeCache.hitRate))")
+        print("  Cache Size: \(decodeCache.count) / 50,000 entries")
     }
 }

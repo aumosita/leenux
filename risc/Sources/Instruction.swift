@@ -57,7 +57,9 @@ struct Instruction {
             let rd = UInt8((raw >> 7) & 0x1F)
             let funct3 = UInt8((raw >> 12) & 0x7)
             let rs1 = UInt8((raw >> 15) & 0x1F)
-            let imm = Int16(bitPattern: UInt16((raw >> 20) & 0xFFF))
+            var immVal = UInt16((raw >> 20) & 0xFFF)
+            if (immVal & 0x800) != 0 { immVal |= 0xF000 }
+            let imm = Int16(bitPattern: immVal)
             return .iType(opcode: opcode, rd: rd, funct3: funct3, rs1: rs1, imm: imm)
             
         case 0x23, 0x27: // S-type (STORE, STORE-FP)
@@ -66,7 +68,9 @@ struct Instruction {
             let rs2 = UInt8((raw >> 20) & 0x1F)
             let imm7 = UInt16((raw >> 25) & 0x7F)
             let imm5 = UInt16((raw >> 7) & 0x1F)
-            let imm = Int16(bitPattern: (imm7 << 5) | imm5)
+            var immVal = (imm7 << 5) | imm5
+            if (immVal & 0x800) != 0 { immVal |= 0xF000 }
+            let imm = Int16(bitPattern: immVal)
             return .sType(opcode: opcode, funct3: funct3, rs1: rs1, rs2: rs2, imm: imm)
             
         case 0x63: // B-type
@@ -108,7 +112,9 @@ struct Instruction {
             let rd = UInt8((raw >> 7) & 0x1F)
             let funct3 = UInt8((raw >> 12) & 0x7)
             let rs1 = UInt8((raw >> 15) & 0x1F)
-            let imm = Int16(bitPattern: UInt16((raw >> 20) & 0xFFF))
+            var immVal = UInt16((raw >> 20) & 0xFFF)
+            if (immVal & 0x800) != 0 { immVal |= 0xF000 }
+            let imm = Int16(bitPattern: immVal)
             return .iType(opcode: opcode, rd: rd, funct3: funct3, rs1: rs1, imm: imm)
         }
     }

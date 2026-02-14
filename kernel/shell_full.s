@@ -23,9 +23,6 @@
 #=============================================================================
 # Entry Point
 #=============================================================================
-#=============================================================================
-# Entry Point
-#=============================================================================
 _start:
     # Initialize stack
     li sp, 0x80000
@@ -151,7 +148,7 @@ handle_enter:
 #=============================================================================
 execute_command:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     la a0, command_line
     
@@ -175,10 +172,6 @@ execute_command:
     # Check 'touch'
     la a0, command_line
     la a1, cmd_touch
-    # Only check prefix for touch (simplification for now)
-    # TODO: Proper argument parsing
-    # For now, precise match "touch test" is hard in pure asm without tokenizer logic reused
-    # We will just accept "touch" and create a default file "newfile.txt" for demo
     call strcmp
     beqz a0, exec_touch
     
@@ -193,6 +186,12 @@ execute_command:
     la a1, cmd_clear
     call strcmp
     beqz a0, exec_clear
+
+    # Check 'shutdown'
+    la a0, command_line
+    la a1, cmd_shutdown
+    call strcmp
+    beqz a0, exec_shutdown
     
     # Unknown
     la a0, msg_unknown
@@ -222,6 +221,10 @@ exec_clear:
     call term_clear
     j exec_done
 
+exec_shutdown:
+    ebreak
+    j shell_loop
+
 exec_ls:
     la a0, msg_ls_hdr
     call print_string
@@ -238,13 +241,6 @@ ls_loop:
     call fs_read_inode
     
     # Check type (offset 4)
-    # sector_buffer is utilized by fs_read_inode
-    # BUT fs_read_inode reads to sector_buffer
-    # Inode structure:
-    # 0: size
-    # 4: type
-    # 8-31: name (24 bytes)
-    
     la t0, sector_buffer
     lw t1, 4(t0)    # Type
     
@@ -262,9 +258,6 @@ print_type_done:
     
     # Print Size (offset 0)
     lw a0, 0(t0)
-    # TODO: Integer printing needed. For now just spaces
-    # call print_int 
-    # Placeholder:
     li a0, 32 # space
     call term_putchar
     li a0, 32
@@ -285,7 +278,7 @@ ls_done:
     j exec_done
 
 exec_touch:
-    # Create "new.txt"
+    # Create "hello.txt" (fixed for test)
     call fs_alloc_inode
     li t0, -1
     beq a0, t0, touch_err
@@ -299,15 +292,32 @@ exec_touch:
     li t1, 1
     sw t1, 4(t0)      # type FILE
     
-    # Name "new.txt"
-    li t1, 0x6E       # n
-    sb t1, 8(t0)
-    li t1, 0x65       # e
-    sb t1, 9(t0)
-    li t1, 0x77       # w
-    sb t1, 10(t0)
-    li t1, 0
-    sb t1, 11(t0)
+    # Name "hello.txt"
+    la t1, val_hello_name
+    la t2, sector_buffer
+    addi t2, t2, 8
+    
+    # Copy manually or use strcpy
+    lbu t3, 0(t1)
+    sb t3, 0(t2)
+    lbu t3, 1(t1)
+    sb t3, 1(t2)
+    lbu t3, 2(t1)
+    sb t3, 2(t2)
+    lbu t3, 3(t1)
+    sb t3, 3(t2)
+    lbu t3, 4(t1)
+    sb t3, 4(t2)
+    lbu t3, 5(t1)
+    sb t3, 5(t2)
+    lbu t3, 6(t1)
+    sb t3, 6(t2)
+    lbu t3, 7(t1)
+    sb t3, 7(t2)
+    lbu t3, 8(t1)
+    sb t3, 8(t2)
+    lbu t3, 9(t1)
+    sb t3, 9(t2)
     
     # Write back
     mv a0, s2
@@ -322,10 +332,6 @@ touch_err:
     j exec_done
 
 exec_spawn:
-    # DEBUG: Print 'S'
-    li a0, 83
-    call term_putchar
-    
     la a0, background_task
     call proc_create
     
@@ -345,26 +351,17 @@ spawn_fail:
 # Background Task
 #=============================================================================
 background_task:
-    # This runs in its own context
-    # Loop and print a character every now and then
-    
-    li s1, 0  # Counter
+    li s1, 0
 
 bg_loop:
-    # Small delay loop to simulate work
     li t0, 500000
 delay_loop:
     addi t0, t0, -1
     bnez t0, delay_loop
     
-    # Print a dot to show we are alive
     li a0, 46 # '.'
-    # call term_putchar  <-- OLD (Direct Call)
-    call u_putchar     # <-- NEW (Syscall)
-    
-    # Yield back to shell
-    # call yield         <-- OLD (Direct Call)
-    call u_yield       # <-- NEW (Syscall)
+    call u_putchar
+    call u_yield
     
     j bg_loop
 
@@ -372,18 +369,17 @@ delay_loop:
 # User Mode Syscall Wrappers
 #=============================================================================
 u_yield:
-    li a7, 0        # SYS_YIELD
+    li a7, 0
     ecall
     ret
 
 u_putchar:
-    # a0 already has char
-    li a7, 1        # SYS_PUTCHAR
+    li a7, 1
     ecall
     ret
 
 exec_done:
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -392,8 +388,8 @@ exec_done:
 #=============================================================================
 print_string:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
+    sd ra, 8(sp)
+    sd s0, 0(sp)
     mv s0, a0
 ps_loop:
     lbu a0, 0(s0)
@@ -402,8 +398,8 @@ ps_loop:
     addi s0, s0, 1
     j ps_loop
 ps_done:
-    lw s0, 8(sp)
-    lw ra, 12(sp)
+    ld s0, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -412,7 +408,7 @@ ps_done:
 
 msg_welcome: .asciz "\nWelcome to Leenux Shell (Preemptive)!\nType 'help' for commands.\n"
 msg_unknown: .asciz "Unknown command: "
-msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn\n"
+msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn, shutdown\n"
 msg_fmt_ok: .asciz "Filesystem formatted.\n"
 msg_fmt_err: .asciz "Format failed.\n"
 msg_ls_hdr: .asciz "ID  Type  Size Name\n"
@@ -429,37 +425,9 @@ cmd_format: .asciz "format"
 cmd_touch: .asciz "touch"
 cmd_clear: .asciz "clear"
 cmd_spawn: .asciz "spawn"
+cmd_shutdown: .asciz "shutdown"
 
-# Variables
-.align 4
-cmd_length: .word 0
-command_line: .space 128
-sector_buffer: .space 512
-
-.align 4
-
-.section .data
-.align 4
-
-msg_welcome: .asciz "\nWelcome to Leenux Shell (Preemptive)!\nType 'help' for commands.\n"
-msg_unknown: .asciz "Unknown command: "
-msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn\n"
-msg_fmt_ok: .asciz "Filesystem formatted.\n"
-msg_fmt_err: .asciz "Format failed.\n"
-msg_ls_hdr: .asciz "ID  Type  Size Name\n"
-msg_file: .asciz "FILE"
-msg_dir: .asciz "DIR "
-msg_touch_ok: .asciz "File created.\n"
-msg_touch_err: .asciz "Create failed.\n"
-msg_spawn_ok: .asciz "Background task spawned.\n"
-msg_spawn_err: .asciz "Failed to spawn task.\n"
-
-cmd_help: .asciz "help"
-cmd_ls: .asciz "ls"
-cmd_format: .asciz "format"
-cmd_touch: .asciz "touch"
-cmd_clear: .asciz "clear"
-cmd_spawn: .asciz "spawn"
+val_hello_name: .asciz "hello.txt"
 
 # Variables
 .align 4

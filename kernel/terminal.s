@@ -22,6 +22,8 @@ term_scroll_offset: .word 0
 .equ COLOR_PROMPT, 0x0000FF00    # Green
 .equ COLOR_BG, 0x00001010        # Dark blue
 
+.equ UART_BASE, 0x10000000
+
 .section .text
 .globl term_init
 .globl term_putchar
@@ -47,35 +49,48 @@ term_init:
     sw zero, 0(t0)
     
     # Clear screen
+    addi sp, sp, -8
+    sd ra, 0(sp)
     call term_clear
     
     # Draw initial prompt
     call term_print_prompt
     
+    ld ra, 0(sp)
+    addi sp, sp, 8
     ret
 
 #=============================================================================
-# term_clear: Clear entire screen
+# term_clear: Clear entire screen (Optimized for RV64)
 #=============================================================================
 term_clear:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
-    sw s1, 4(sp)
+    addi sp, sp, -32
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
     
     # Fill screen with background color
     lui s0, 0x10003          # Framebuffer base
-    lui s1, %hi(COLOR_BG)
-    addi s1, s1, %lo(COLOR_BG)
+    li s1, COLOR_BG
     
-    li t0, 786432            # 1024 * 768 pixels
+    # Fast clear: write 8 pixels (32 bytes) at once
+    # 1024 * 768 = 786432 pixels
+    # 786432 / 8 = 98304 iterations
+    li t0, 98304
     mv t1, s0
     
+    # Construct 64-bit value with two pixels
+    slli t2, s1, 32
+    or s1, s1, t2            # s1 now has 2 pixels (0x00BBGGRR00BBGGRR)
+
 clear_loop:
-    sw s1, 0(t1)
-    addi t1, t1, 4
+    sd s1, 0(t1)
+    sd s1, 8(t1)
+    sd s1, 16(t1)
+    sd s1, 24(t1)
+    addi t1, t1, 32
     addi t0, t0, -1
-    bne t0, zero, clear_loop
+    bnez t0, clear_loop
     
     # Reset cursor
     la t0, cursor_x
@@ -83,10 +98,10 @@ clear_loop:
     la t0, cursor_y
     sw zero, 0(t0)
     
-    lw s1, 4(sp)
-    lw s0, 8(sp)
-    lw ra, 12(sp)
-    addi sp, sp, 16
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
+    addi sp, sp, 32
     ret
 
 #=============================================================================
@@ -95,13 +110,18 @@ clear_loop:
 # Arguments: a0 = character
 #=============================================================================
 term_putchar:
-    addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    sw s2, 16(sp)
+    addi sp, sp, -48
+    sd ra, 40(sp)
+    sd s0, 32(sp)
+    sd s1, 24(sp)
+    sd s2, 16(sp)
+    sd s3, 8(sp)
     
     mv s0, a0                # Save character
+    
+    # Write to UART for console mirror
+    li t0, UART_BASE
+    sb s0, 0(t0)
     
     # Handle special characters
     li t0, 0x0A              # Newline
@@ -133,8 +153,7 @@ term_putchar:
     
     # Draw character
     mv a2, s0                # character
-    lui a3, %hi(COLOR_TEXT)
-    addi a3, a3, %lo(COLOR_TEXT)
+    li a3, COLOR_TEXT
     call draw_char
     
     # Advance cursor
@@ -160,11 +179,12 @@ putchar_backspace:
     call term_backspace
     
 putchar_done:
-    lw s2, 16(sp)
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
-    addi sp, sp, 32
+    ld s3, 8(sp)
+    ld s2, 16(sp)
+    ld s1, 24(sp)
+    ld s0, 32(sp)
+    ld ra, 40(sp)
+    addi sp, sp, 48
     ret
 
 #=============================================================================
@@ -172,7 +192,7 @@ putchar_done:
 #=============================================================================
 term_newline:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     # Set X to 0
     la t0, cursor_x
@@ -194,7 +214,7 @@ term_newline:
 newline_no_scroll:
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -216,7 +236,7 @@ term_backspace:
     # Clear character at that position
     # (Draw space character)
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     li a0, 32                # Space
     call term_putchar
@@ -227,7 +247,7 @@ term_backspace:
     addi t1, t1, -1
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     
 backspace_done:
@@ -240,11 +260,11 @@ term_scroll:
     # TODO: Implement proper scrolling (copy lines up)
     # For now, just clear screen when full
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     call term_clear
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -253,20 +273,19 @@ term_scroll:
 #=============================================================================
 term_print_prompt:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     # Print "leenux> " in green
-    la a2, prompt_string
-    li a0, 0                 # x = 0
+    la a0, prompt_string
+    li a1, 0                 # x = 0
     la t0, cursor_y
     lw t1, 0(t0)
     li t2, 8
-    mul a1, t1, t2
+    mul a2, t1, t2
     li t2, TERM_MARGIN_Y
-    add a1, a1, t2           # y = cursor_y * 8 + margin
+    add a2, a2, t2           # y = cursor_y * 8 + margin
     
-    lui a3, %hi(COLOR_PROMPT)
-    addi a3, a3, %lo(COLOR_PROMPT)
+    li a3, COLOR_PROMPT
     call draw_string
     
     # Update cursor_x to after prompt
@@ -274,7 +293,7 @@ term_print_prompt:
     li t1, 8                 # "leenux> " = 8 chars
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 

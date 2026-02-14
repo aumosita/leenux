@@ -153,7 +153,7 @@ func main() {
     
     // Load program only if not in test mode
     if !isTestMode {
-        guard system.loadProgram(at: 0x0000, data: program) else {
+        guard system.loadProgram(at: 0x1000, data: program) else {
             exit(1)
         }
     }

@@ -136,6 +136,22 @@ class FramebufferDevice: MMIODevice {
             return 0
         }
     }
+
+    func read64(offset: UInt64) -> UInt64? {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        switch offset {
+        case 0x1000...:
+            let pixelIndex = Int((offset - 0x1000) / 4)
+            guard pixelIndex + 1 < pixels.count else { return 0 }
+            let low = UInt64(pixels[pixelIndex])
+            let high = UInt64(pixels[pixelIndex + 1])
+            return low | (high << 32)
+        default:
+            return nil
+        }
+    }
     
     // MARK: - Write (Thread-Safe)
     
@@ -201,6 +217,26 @@ class FramebufferDevice: MMIODevice {
             return true
             
         default:
+            return false
+        }
+    }
+
+    func write64(offset: UInt64, value: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        switch offset {
+        case 0x1000...:
+            // Pixel data (64-bit write, 2 pixels at once)
+            let pixelIndex = Int((offset - 0x1000) / 4)
+            guard pixelIndex + 1 < pixels.count else { return false }
+            pixels[pixelIndex] = UInt32(value & 0xFFFFFFFF)
+            pixels[pixelIndex + 1] = UInt32(value >> 32)
+            isDirty = true
+            return true
+            
+        default:
+            // Fallback or specific MMIO registers if needed
             return false
         }
     }

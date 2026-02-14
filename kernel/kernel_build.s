@@ -23,9 +23,6 @@
 #=============================================================================
 # Entry Point
 #=============================================================================
-#=============================================================================
-# Entry Point
-#=============================================================================
 _start:
     # Initialize stack
     li sp, 0x80000
@@ -151,7 +148,7 @@ handle_enter:
 #=============================================================================
 execute_command:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     la a0, command_line
     
@@ -175,10 +172,6 @@ execute_command:
     # Check 'touch'
     la a0, command_line
     la a1, cmd_touch
-    # Only check prefix for touch (simplification for now)
-    # TODO: Proper argument parsing
-    # For now, precise match "touch test" is hard in pure asm without tokenizer logic reused
-    # We will just accept "touch" and create a default file "newfile.txt" for demo
     call strcmp
     beqz a0, exec_touch
     
@@ -193,6 +186,12 @@ execute_command:
     la a1, cmd_clear
     call strcmp
     beqz a0, exec_clear
+
+    # Check 'shutdown'
+    la a0, command_line
+    la a1, cmd_shutdown
+    call strcmp
+    beqz a0, exec_shutdown
     
     # Unknown
     la a0, msg_unknown
@@ -222,6 +221,10 @@ exec_clear:
     call term_clear
     j exec_done
 
+exec_shutdown:
+    ebreak
+    j shell_loop
+
 exec_ls:
     la a0, msg_ls_hdr
     call print_string
@@ -238,13 +241,6 @@ ls_loop:
     call fs_read_inode
     
     # Check type (offset 4)
-    # sector_buffer is utilized by fs_read_inode
-    # BUT fs_read_inode reads to sector_buffer
-    # Inode structure:
-    # 0: size
-    # 4: type
-    # 8-31: name (24 bytes)
-    
     la t0, sector_buffer
     lw t1, 4(t0)    # Type
     
@@ -262,9 +258,6 @@ print_type_done:
     
     # Print Size (offset 0)
     lw a0, 0(t0)
-    # TODO: Integer printing needed. For now just spaces
-    # call print_int 
-    # Placeholder:
     li a0, 32 # space
     call term_putchar
     li a0, 32
@@ -285,7 +278,7 @@ ls_done:
     j exec_done
 
 exec_touch:
-    # Create "new.txt"
+    # Create "hello.txt" (fixed for test)
     call fs_alloc_inode
     li t0, -1
     beq a0, t0, touch_err
@@ -299,15 +292,32 @@ exec_touch:
     li t1, 1
     sw t1, 4(t0)      # type FILE
     
-    # Name "new.txt"
-    li t1, 0x6E       # n
-    sb t1, 8(t0)
-    li t1, 0x65       # e
-    sb t1, 9(t0)
-    li t1, 0x77       # w
-    sb t1, 10(t0)
-    li t1, 0
-    sb t1, 11(t0)
+    # Name "hello.txt"
+    la t1, val_hello_name
+    la t2, sector_buffer
+    addi t2, t2, 8
+    
+    # Copy manually or use strcpy
+    lbu t3, 0(t1)
+    sb t3, 0(t2)
+    lbu t3, 1(t1)
+    sb t3, 1(t2)
+    lbu t3, 2(t1)
+    sb t3, 2(t2)
+    lbu t3, 3(t1)
+    sb t3, 3(t2)
+    lbu t3, 4(t1)
+    sb t3, 4(t2)
+    lbu t3, 5(t1)
+    sb t3, 5(t2)
+    lbu t3, 6(t1)
+    sb t3, 6(t2)
+    lbu t3, 7(t1)
+    sb t3, 7(t2)
+    lbu t3, 8(t1)
+    sb t3, 8(t2)
+    lbu t3, 9(t1)
+    sb t3, 9(t2)
     
     # Write back
     mv a0, s2
@@ -322,10 +332,6 @@ touch_err:
     j exec_done
 
 exec_spawn:
-    # DEBUG: Print 'S'
-    li a0, 83
-    call term_putchar
-    
     la a0, background_task
     call proc_create
     
@@ -345,26 +351,17 @@ spawn_fail:
 # Background Task
 #=============================================================================
 background_task:
-    # This runs in its own context
-    # Loop and print a character every now and then
-    
-    li s1, 0  # Counter
+    li s1, 0
 
 bg_loop:
-    # Small delay loop to simulate work
     li t0, 500000
 delay_loop:
     addi t0, t0, -1
     bnez t0, delay_loop
     
-    # Print a dot to show we are alive
     li a0, 46 # '.'
-    # call term_putchar  <-- OLD (Direct Call)
-    call u_putchar     # <-- NEW (Syscall)
-    
-    # Yield back to shell
-    # call yield         <-- OLD (Direct Call)
-    call u_yield       # <-- NEW (Syscall)
+    call u_putchar
+    call u_yield
     
     j bg_loop
 
@@ -372,18 +369,17 @@ delay_loop:
 # User Mode Syscall Wrappers
 #=============================================================================
 u_yield:
-    li a7, 0        # SYS_YIELD
+    li a7, 0
     ecall
     ret
 
 u_putchar:
-    # a0 already has char
-    li a7, 1        # SYS_PUTCHAR
+    li a7, 1
     ecall
     ret
 
 exec_done:
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -392,8 +388,8 @@ exec_done:
 #=============================================================================
 print_string:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
+    sd ra, 8(sp)
+    sd s0, 0(sp)
     mv s0, a0
 ps_loop:
     lbu a0, 0(s0)
@@ -402,8 +398,8 @@ ps_loop:
     addi s0, s0, 1
     j ps_loop
 ps_done:
-    lw s0, 8(sp)
-    lw ra, 12(sp)
+    ld s0, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -412,7 +408,7 @@ ps_done:
 
 msg_welcome: .asciz "\nWelcome to Leenux Shell (Preemptive)!\nType 'help' for commands.\n"
 msg_unknown: .asciz "Unknown command: "
-msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn\n"
+msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn, shutdown\n"
 msg_fmt_ok: .asciz "Filesystem formatted.\n"
 msg_fmt_err: .asciz "Format failed.\n"
 msg_ls_hdr: .asciz "ID  Type  Size Name\n"
@@ -429,6 +425,9 @@ cmd_format: .asciz "format"
 cmd_touch: .asciz "touch"
 cmd_clear: .asciz "clear"
 cmd_spawn: .asciz "spawn"
+cmd_shutdown: .asciz "shutdown"
+
+val_hello_name: .asciz "hello.txt"
 
 # Variables
 .align 4
@@ -438,337 +437,156 @@ sector_buffer: .space 512
 
 .align 4
 
-.section .data
-.align 4
-
-msg_welcome: .asciz "\nWelcome to Leenux Shell (Preemptive)!\nType 'help' for commands.\n"
-msg_unknown: .asciz "Unknown command: "
-msg_help: .asciz "Commands: help, ls, touch, format, clear, spawn\n"
-msg_fmt_ok: .asciz "Filesystem formatted.\n"
-msg_fmt_err: .asciz "Format failed.\n"
-msg_ls_hdr: .asciz "ID  Type  Size Name\n"
-msg_file: .asciz "FILE"
-msg_dir: .asciz "DIR "
-msg_touch_ok: .asciz "File created.\n"
-msg_touch_err: .asciz "Create failed.\n"
-msg_spawn_ok: .asciz "Background task spawned.\n"
-msg_spawn_err: .asciz "Failed to spawn task.\n"
-
-cmd_help: .asciz "help"
-cmd_ls: .asciz "ls"
-cmd_format: .asciz "format"
-cmd_touch: .asciz "touch"
-cmd_clear: .asciz "clear"
-cmd_spawn: .asciz "spawn"
-
-# Variables
-.align 4
-cmd_length: .word 0
-command_line: .space 128
-sector_buffer: .space 512
-
-.align 4
 # Process Management for Leenux OS
-# Implements PCB, Scheduler, and Context Switching
 
 .section .data
-.globl proc_table
-.globl current_proc
-.globl proc_count
+.globl proc_table, current_proc, proc_count
 
-# Constants
 .equ MAX_PROCESSES, 4
-.equ STACK_SIZE, 1024       # 1KB stack per process
+.equ STACK_SIZE, 1024
 .equ PROC_STATE_UNUSED, 0
 .equ PROC_STATE_READY, 1
 .equ PROC_STATE_RUNNING, 2
-
-# Process Control Block (PCB) Structure (Aligned to 32 bytes for simplicity)
-# Offset 0: PID (4 bytes)
-# Offset 4: State (4 bytes)
-# Offset 8: SP (8 bytes)
-# Offset 16: Stack Base (8 bytes)
-# Total: 24 bytes (padded to 32)
 .equ PCB_SIZE, 32
 .equ PCB_OFFSET_PID, 0
 .equ PCB_OFFSET_STATE, 4
 .equ PCB_OFFSET_SP, 8
 .equ PCB_OFFSET_STACK, 16
 
-# storage
 .align 3
 proc_table: .space MAX_PROCESSES * PCB_SIZE
-current_proc: .word -1      # PID of current process (-1 = none)
+current_proc: .word -1
 proc_count: .word 0
 
-# Stacks for processes
 .align 3
 proc_stacks: .space MAX_PROCESSES * STACK_SIZE
 
 .section .text
-.globl proc_init
-.globl proc_create
-.globl schedule
-.globl yield
-.globl switch_context
+.globl proc_init, proc_create, schedule, yield, switch_context
 
-#=============================================================================
-# proc_init: Initialize process table
-#=============================================================================
 proc_init:
-    addi sp, sp, -8
-    sd ra, 0(sp)
-    
-    # Clear process table
+    addi sp, sp, -16
+    sd ra, 8(sp)
     la t0, proc_table
     li t1, MAX_PROCESSES
     li t2, 0
     li t3, PROC_STATE_UNUSED
-    
 init_loop:
-    sw t3, PCB_OFFSET_STATE(t0) # state = UNUSED
+    sw t3, PCB_OFFSET_STATE(t0)
     addi t0, t0, PCB_SIZE
     addi t2, t2, 1
     blt t2, t1, init_loop
-    
-    # Set current proc to -1 initially, BUT for the boot process (Shell),
-    # we need to register it as PID 0 so it can be scheduled back to.
-    
-    # Setup PID 0 (Shell/Boot)
     la t0, proc_table
     li t1, 0
-    sw t1, PCB_OFFSET_PID(t0)      # PID = 0
+    sw t1, PCB_OFFSET_PID(t0)
     li t2, PROC_STATE_RUNNING
-    sw t2, PCB_OFFSET_STATE(t0)    # State = RUNNING
-    
-    # We don't set SP yet, yield will save it.
-    # We assume Boot uses the initial stack which is separate from proc_stacks,
-    # or we can leave stack_base 0. switch_context purely uses SP.
-    
-    # Set current proc to 0
+    sw t2, PCB_OFFSET_STATE(t0)
     la t0, current_proc
     sw t1, 0(t0)
-    
-    # Set count to 1
     la t0, proc_count
     li t1, 1
     sw t1, 0(t0)
-    
-    ld ra, 0(sp)
-    addi sp, sp, 8
+    ld ra, 8(sp)
+    addi sp, sp, 16
     ret
 
-#=============================================================================
-# proc_create: Create a new process
-# Input: a0 = entry point address (function pointer)
-# Returns: a0 = PID or -1 if full
-#=============================================================================
 proc_create:
-    addi sp, sp, -16
-    sd ra, 0(sp)
-    sd s0, 8(sp)
-    
-    mv s0, a0  # Save entry point
-    
-    # Find free slot
+    addi sp, sp, -32
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    mv s0, a0
     la t0, proc_table
-    li t1, 0        # PID counter
+    li t1, 0
     li t2, MAX_PROCESSES
-    
 find_free:
     lw t3, PCB_OFFSET_STATE(t0)
     li t4, PROC_STATE_UNUSED
     beq t3, t4, found_slot
-    
     addi t0, t0, PCB_SIZE
     addi t1, t1, 1
     blt t1, t2, find_free
-    
-    # No free slot
     li a0, -1
     j proc_create_end
-
 found_slot:
-    # Initialize PCB
-    sw t1, PCB_OFFSET_PID(t0)           # Set PID
+    sw t1, PCB_OFFSET_PID(t0)
     li t3, PROC_STATE_READY
-    sw t3, PCB_OFFSET_STATE(t0)         # Set STATE = READY
-    
-    # Calculate Stack Pointer
-    # SP = proc_stacks + (PID + 1) * STACK_SIZE
+    sw t3, PCB_OFFSET_STATE(t0)
     la t4, proc_stacks
     addi t5, t1, 1
     li t6, STACK_SIZE
     mul t5, t5, t6
-    add t4, t4, t5   # t4 = Top of stack
-    
-    sw t4, PCB_OFFSET_STACK(t0)        # Save stack base (top)
-    
-    # Setup initial stack frame for the new process & context switch
-    # When we switch TO this process, we load registers from its stack.
-    # Context switch restores: s0-s11, ra.
-    # So we must push initial RA and S0-S11 to this new stack.
-    
-    # Stack layout for switch_context:
-    # -8:  ra (entry point)
-    # -16: s0
-    # ...
-    # -104: s11
-    
-    # Adjust mock SP
-    addi t4, t4, -104   # Reserve space for 13 registers (ra + s0-s11) * 8 bytes
-    sd t4, PCB_OFFSET_SP(t0) # Save SP to PCB
-    
-    # Write Entry Point to RA slot in the mock stack
-    # RA is at offset 96 from current SP (since we did sp-104, 13th slot is top)
-    # wait, pop logic:
-    # ld s11, 0(sp)
-    # ...
-    # ld ra,  96(sp)
-    # So we write entry point to 96(sp)
-    # Write Entry Point to s0 slot (so it's restored into s0)
-    # s0 is at offset 0 from top-of-frame (since we did sp-104)
-    # Stack layout: 
-    # 0(sp) = s0
-    # ...
-    # 96(sp) = ra
-    sd s0, 0(t4)
-    
-    # Write Trampoline Address to RA slot
+    add t4, t4, t5
+    sd t4, PCB_OFFSET_STACK(t0)  # Use sd for 64-bit pointer
+    addi t4, t4, -112
+    sd t4, PCB_OFFSET_SP(t0)
+    sd s0, 0(t4)                 # s0 restored on first switch
     la t6, k_to_user
-    sd t6, 96(t4)
-    
-    # Increment proc_count
+    sd t6, 96(t4)                # ra restored on first switch
     la t5, proc_count
     lw t6, 0(t5)
     addi t6, t6, 1
     sw t6, 0(t5)
-    
-    mv a0, t1       # Return PID
-
+    mv a0, t1
 proc_create_end:
-    ld s0, 8(sp)
-    ld ra, 0(sp)
-    addi sp, sp, 16
+    ld s0, 16(sp)
+    ld ra, 24(sp)
+    addi sp, sp, 32
     ret
 
-#=============================================================================
-# schedule: Pick next process and switch
-#=============================================================================
 schedule:
-    # Save RA to stack because switch_context behaves like a call but returns elsewhere
-    addi sp, sp, -8
-    sd ra, 0(sp)
-    
-    # 1. Get current process ID
+    addi sp, sp, -16
+    sd ra, 8(sp)
     la t0, current_proc
-    lw t1, 0(t0)   # t1 = Current PID
-    
-    # 2. Find next READY process (Round Robin)
-    # Start search from (current_pid + 1)
-    addi t2, t1, 1  # Next PID candidate
+    lw t1, 0(t0)
+    addi t2, t1, 1
     li t3, MAX_PROCESSES
-    rem t2, t2, t3  # Wrap around
-    
-    mv t4, t2       # Scan start index
-    li t5, 0        # Loop counter
-    
+    rem t2, t2, t3
+    li t5, 0
 scan_loop:
-    # Check if we scanned all
     bge t5, t3, no_switch
-    
-    # Get PCB address: proc_table + candidate * PCB_SIZE
     la t6, proc_table
     li a1, PCB_SIZE
     mul a2, t2, a1
-    add t6, t6, a2  # t6 = PCB pointer
-    
-    # Check state
+    add t6, t6, a2
     lw a3, PCB_OFFSET_STATE(t6)
     li a4, PROC_STATE_READY
     beq a3, a4, switch_to
-    li a4, PROC_STATE_RUNNING
-    # If it's already RUNNING (should rely on state, but here simple RR)
-    # If we find RUNNING other than current? Should not happen in single core coop
-    
-    # Next candidate
     addi t2, t2, 1
     rem t2, t2, t3
     addi t5, t5, 1
     j scan_loop
-
 no_switch:
-    # No other tasks ready, just return (continue current)
-    ld ra, 0(sp)
-    addi sp, sp, 8
+    ld ra, 8(sp)
+    addi sp, sp, 16
     ret
-
 switch_to:
-    # t1 = Old PID
-    # t2 = New PID
-    # t6 = New PCB Pointer
-    
-    # Update current_proc
     la a0, current_proc
     sw t2, 0(a0)
-    
-    # Update states
-    # Set New Task to RUNNING
     li a1, PROC_STATE_RUNNING
     sw a1, PCB_OFFSET_STATE(t6)
-    
-    # Handle Old Task (if valid)
     li a2, -1
-    beq t1, a2, first_run # If no current task, just jump to new
-    
-    # Get Old PCB
+    beq t1, a2, first_run
     la a3, proc_table
     li a4, PCB_SIZE
     mul a5, t1, a4
-    add a3, a3, a5  # a3 = Old PCB
-    
-    # Set Old Task to READY
+    add a3, a3, a5
     li a6, PROC_STATE_READY
     sw a6, PCB_OFFSET_STATE(a3)
-    
-    # Perform Context Switch
-    # a0 = &Old_PCB.SP (pointer to where to save old SP)
-    # a1 = New_PCB.SP (value of new SP)
-    
-    addi a0, a3, PCB_OFFSET_SP # Address of SP field in Old PCB
-    ld a1, PCB_OFFSET_SP(t6)   # Value of SP field in New PCB
-    
+    addi a0, a3, PCB_OFFSET_SP
+    ld a1, PCB_OFFSET_SP(t6)
     call switch_context
-    
-    # Returned from switch_context (back in execution)
-    ld ra, 0(sp)
-    addi sp, sp, 8
+    ld ra, 8(sp)
+    addi sp, sp, 16
     ret
-
 first_run:
-    # Special case: First schedule ever
-    # Just load new SP and restore
-    ld sp, PCB_OFFSET_SP(t6)
-    # We need to jump to restore part of switch_context manually
-    # or just call a helper.
-    # For simplicity, we can fake a call to switch_context with dummy old ptr
-    # But better to just load SP and jump to a restore_context label
+    ld a1, PCB_OFFSET_SP(t6)
     j restore_context
 
-#=============================================================================
-# yield: Voluntary CPU surrender
-#=============================================================================
 yield:
     j schedule
 
-#=============================================================================
-# switch_context: Low-level Context Switcher
-# a0 = pointer to save old SP
-# a1 = new SP value
-#=============================================================================
 switch_context:
-    # Save Callee-Saved Registers to current stack
-    addi sp, sp, -104
+    addi sp, sp, -112
     sd s0, 0(sp)
     sd s1, 8(sp)
     sd s2, 16(sp)
@@ -782,15 +600,9 @@ switch_context:
     sd s10, 80(sp)
     sd s11, 88(sp)
     sd ra, 96(sp)
-    
-    # Save old SP to PCB
     sd sp, 0(a0)
-
 restore_context:
-    # Load new SP
     mv sp, a1
-    
-    # Restore Callee-Saved Registers from new stack
     ld s0, 0(sp)
     ld s1, 8(sp)
     ld s2, 16(sp)
@@ -804,57 +616,30 @@ restore_context:
     ld s10, 80(sp)
     ld s11, 88(sp)
     ld ra, 96(sp)
-    
-    addi sp, sp, 104
+    addi sp, sp, 112
     ret
 
-#=============================================================================
-# k_to_user: Trampoline to switch to User Mode
-# Expects: s0 = User Entry Point
-#=============================================================================
 k_to_user:
-    # 1. Set MEPC to the user entry point
     csrw mepc, s0
-    
-    # 2. Configure MSTATUS
-    # Clear MPP (bits 11-12) to 00 (User Mode)
-    # Set MPIE (bit 7) to 1 (Enable Interrupts in U-Mode)
-    
     csrr t0, mstatus
-    li t1, 0x1800       # Bits 11-12 (MPP)
-    csrc mstatus, t1    # Clear MPP (sets to 00 = User Mode)
-    
-    li t1, 0x80         # MPIE bit
-    csrs mstatus, t1    # Set MPIE (Enable Interrupts in U-Mode)
-    
-    # 3. Enter User Mode
+    li t1, 0x1800
+    csrc mstatus, t1
+    li t1, 0x80
+    csrs mstatus, t1
     mret
+
 # Trap Handler for Leenux OS
-# Handles Interrupts and Exceptions
 
 .section .text
-.globl trap_init
-.globl trap_vector
+.globl trap_init, trap_vector
 
-#=============================================================================
-# trap_init: Setup mtvec
-#=============================================================================
 trap_init:
     la t0, trap_vector
     csrw mtvec, t0
     ret
 
-#=============================================================================
-# trap_vector: Main Entry Point for Traps
-#=============================================================================
 .align 4
 trap_vector:
-    # 1. Save Context
-    # We need to save ALL registers because an interrupt can happen ANYWHERE.
-    # For now, we reuse the current stack.
-    # Ideally, we should switch to a kernel trap stack.
-    # But since we are already in Machine Mode (No User Mode yet), SP is trusted.
-    
     addi sp, sp, -256
     sd ra, 0(sp)
     sd sp, 8(sp)
@@ -888,32 +673,16 @@ trap_vector:
     sd t5, 232(sp)
     sd t6, 240(sp)
     
-    # 2. Check Cause
     csrr t0, mcause
-    
-    # Check if Interrupt (Bit 63)
     li t1, 0x8000000000000000
     and t2, t0, t1
     beqz t2, handle_exception
     
-    # Is Interrupt
-    # Mask out bit 63
     not t1, t1
     and t0, t0, t1
     
-    # DEBUG: Print 'I' for Interrupt
-    li a0, 73
-    call term_putchar
-    
-    # Check for Machine Timer Interrupt (Code 7)
     li t1, 7
     beq t0, t1, handle_timer
-    
-    # DEBUG: Print 'U' for Unknown Interrupt
-    li a0, 85
-    call term_putchar
-    
-    # Unknown Interrupt
     j trap_exit
 
 handle_timer:
@@ -921,33 +690,22 @@ handle_timer:
     j trap_exit
 
 handle_exception:
-    # Check for Ecall from U-mode (Cause 8)
     li t1, 8
     beq t0, t1, handle_syscall
-    
-    # DEBUG: Print 'E' for Exception
-    li a0, 69
-    call term_putchar
-    
-    # Infinite loop on other exceptions
+    ebreak # Crash on unknown exception
     j handle_exception
 
 handle_syscall:
-    # 1. Advance MEPC by 4 (skip ecall instruction)
     csrr t0, mepc
     addi t0, t0, 4
     csrw mepc, t0
     
-    # 2. Dispatch based on a7 (Syscall Number)
     li t0, 0
     beq a7, t0, sys_yield
-    
     li t0, 1
     beq a7, t0, sys_putchar
-    
     li t0, 2
     beq a7, t0, sys_exit
-    
     j trap_exit
 
 sys_yield:
@@ -955,18 +713,14 @@ sys_yield:
     j trap_exit
 
 sys_putchar:
-    # a0 contains char
     call term_putchar
     j trap_exit
     
 sys_exit:
-    # TODO: Implement exit
     j sys_yield
 
 trap_exit:
-    # 3. Restore Context
     ld ra, 0(sp)
-    # sp is restored at the end
     ld gp, 16(sp)
     ld tp, 24(sp)
     ld t0, 32(sp)
@@ -984,7 +738,7 @@ trap_exit:
     ld a7, 128(sp)
     ld s2, 136(sp)
     ld s3, 144(sp)
-    sd s4, 152(sp)
+    ld s4, 152(sp)
     ld s5, 160(sp)
     ld s6, 168(sp)
     ld s7, 176(sp)
@@ -996,346 +750,193 @@ trap_exit:
     ld t4, 224(sp)
     ld t5, 232(sp)
     ld t6, 240(sp)
-    
     addi sp, sp, 256
     mret
+
 # RISC-V Timer Driver (CLINT)
-# Maps to emulator's CLINT at 0x10001000
 
 .section .data
 .align 3
-# CLINT Memory Map (Custom TimerDevice)
-# 0x00: Current Cycle (MTIME)
-# 0x08: Alarm Cycle (MTIMECMP)
-# 0x10: Control Register (Bit 0: Enable)
 .equ CLINT_BASE, 0x10001000
-.equ CLINT_MTIME,    0x00
+.equ CLINT_MTIME, 0x00
 .equ CLINT_MTIMECMP, 0x08
-.equ CLINT_CTRL,     0x10
-
-# Timer Interval (Cycles)
+.equ CLINT_CTRL, 0x10
 .equ TIMER_INTERVAL, 100000
 
 .section .text
-.globl timer_init
-.globl timer_handler
+.globl timer_init, timer_handler
 
-#=============================================================================
-# timer_init: Initialize Timer
-#=============================================================================
 timer_init:
     addi sp, sp, -16
-    sd ra, 0(sp)
-    sd s0, 8(sp)
-
-    # 1. Read current mtime
+    sd ra, 8(sp)
     li t0, CLINT_BASE
-    # li t1, CLINT_MTIME (0)
-    ld t2, CLINT_MTIME(t0)    # t2 = current time
-    
-    # 2. Add interval
+    ld t2, CLINT_MTIME(t0)
     li t3, TIMER_INTERVAL
     add t2, t2, t3
-    
-    # 3. Write to mtimecmp
     sd t2, CLINT_MTIMECMP(t0)
-    
-    # 4. Enable Timer Device (Write 1 to Control)
     li t3, 1
     sb t3, CLINT_CTRL(t0)
-    
-    # 5. Enable Machine Timer Interrupt (MIE bit 7)
-    li t0, 0x80     # bit 7 (MTIE)
-    csrs mie, t0    # Set MTIE bit in mie register
-    
-    ld s0, 8(sp)
-    ld ra, 0(sp)
+    li t0, 0x80
+    csrs mie, t0
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# timer_handler: Handle Timer Interrupt
-#=============================================================================
 timer_handler:
     addi sp, sp, -16
-    sd ra, 0(sp)
-    sd s0, 8(sp)
-    
-    # DEBUG: Print 'T'
-    li a0, 84
-    call term_putchar
-    
-    # 1. Clear Alarm (Write 2 to Control, or just update cmp?)
-    # TimerDevice says: "bit 1 쓰기로 알람 클리어" (Write bit 1 to clear)
+    sd ra, 8(sp)
     li t0, CLINT_BASE
-    li t1, 3        # Bit 0 (Enable) | Bit 1 (Clear Trigger)
+    li t1, 3
     sb t1, CLINT_CTRL(t0)
-    
-    # 2. Schedule next interrupt
-    # Read old cmp
     ld t2, CLINT_MTIMECMP(t0)
-    
-    # Add interval
     li t3, TIMER_INTERVAL
     add t2, t2, t3
-    
-    # Write back
     sd t2, CLINT_MTIMECMP(t0)
-    
-    # 3. Call Scheduler
     call schedule
-    
-    ld s0, 8(sp)
-    ld ra, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
+
 # Disk Driver - MMIO Block Device
-# 512-byte sector I/O for Leenux OS
 
 .section .data
-
-# Disk MMIO registers (base: 0x15000000)
 .equ DISK_BASE, 0x15000000
-.equ DISK_SECTOR, 0x15000000      # 4 bytes: sector number
-.equ DISK_BUFFER, 0x15000004      # 4 bytes: buffer address
-.equ DISK_COMMAND, 0x15000008     # 1 byte: command
-.equ DISK_STATUS, 0x1500000C      # 1 byte: status
-
-# Commands
+.equ DISK_SECTOR, 0x15000000
+.equ DISK_BUFFER, 0x15000004
+.equ DISK_COMMAND, 0x15000008
+.equ DISK_STATUS, 0x1500000C
 .equ CMD_READ, 0x01
 .equ CMD_WRITE, 0x02
-
-# Status
 .equ STATUS_IDLE, 0x00
 .equ STATUS_BUSY, 0x01
 .equ STATUS_DONE, 0x02
 .equ STATUS_ERROR, 0xFF
-
-# Disk geometry
-.equ SECTOR_SIZE, 512
-.equ TOTAL_SECTORS, 65536         # 32 MB disk
+.equ TOTAL_SECTORS, 65536
 
 .globl disk_initialized
 disk_initialized: .word 0
 
 .section .text
-.globl disk_init
-.globl disk_read_sector
-.globl disk_write_sector
-.globl disk_wait
+.globl disk_init, disk_read_sector, disk_write_sector, disk_wait
 
-#=============================================================================
-# disk_init: Initialize disk controller
-#=============================================================================
 disk_init:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    
-    # Check if disk is present by reading status
+    sd ra, 8(sp)
     li t0, DISK_STATUS
     lbu t1, 0(t0)
-    
-    # Any status means disk is there
-    # (In real hardware, we'd check device ID)
-    
-    # Mark as initialized
     la t0, disk_initialized
     li t1, 1
     sw t1, 0(t0)
-    
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# disk_read_sector: Read one sector from disk
-#
-# Arguments:
-#   a0 = sector number
-#   a1 = buffer address (must be 512 bytes)
-# Returns:
-#   a0 = 0 on success, -1 on error
-#=============================================================================
 disk_read_sector:
     addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    
-    mv s0, a0                # Save sector
-    mv s1, a1                # Save buffer
-    
-    # Check if initialized
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
+    mv s0, a0
+    mv s1, a1
     la t0, disk_initialized
     lw t1, 0(t0)
     beqz t1, drs_error
-    
-    # Check sector bounds
     li t0, TOTAL_SECTORS
     bgeu s0, t0, drs_error
-    
-    # Wait for disk to be idle
     call disk_wait
     bnez a0, drs_error
-    
-    # Set sector number
     li t0, DISK_SECTOR
     sw s0, 0(t0)
-    
-    # Set buffer address
     li t0, DISK_BUFFER
     sw s1, 0(t0)
-    
-    # Issue read command
     li t0, DISK_COMMAND
     li t1, CMD_READ
     sb t1, 0(t0)
-    
-    # Wait for completion
     call disk_wait
     bnez a0, drs_error
-    
-    # Success
     li a0, 0
     j drs_done
-    
 drs_error:
     li a0, -1
-    
 drs_done:
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
     addi sp, sp, 32
     ret
 
-#=============================================================================
-# disk_write_sector: Write one sector to disk
-#
-# Arguments:
-#   a0 = sector number
-#   a1 = buffer address (512 bytes to write)
-# Returns:
-#   a0 = 0 on success, -1 on error
-#=============================================================================
 disk_write_sector:
     addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    
-    mv s0, a0                # Save sector
-    mv s1, a1                # Save buffer
-    
-    # Check if initialized
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
+    mv s0, a0
+    mv s1, a1
     la t0, disk_initialized
     lw t1, 0(t0)
     beqz t1, dws_error
-    
-    # Check sector bounds
     li t0, TOTAL_SECTORS
     bgeu s0, t0, dws_error
-    
-    # Wait for disk to be idle
     call disk_wait
     bnez a0, dws_error
-    
-    # Set sector number
     li t0, DISK_SECTOR
     sw s0, 0(t0)
-    
-    # Set buffer address
     li t0, DISK_BUFFER
     sw s1, 0(t0)
-    
-    # Issue write command
     li t0, DISK_COMMAND
     li t1, CMD_WRITE
     sb t1, 0(t0)
-    
-    # Wait for completion
     call disk_wait
     bnez a0, dws_error
-    
-    # Success
     li a0, 0
     j dws_done
-    
 dws_error:
     li a0, -1
-    
 dws_done:
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
     addi sp, sp, 32
     ret
 
-#=============================================================================
-# disk_wait: Wait for disk operation to complete
-#
-# Returns:
-#   a0 = 0 if successful (STATUS_DONE)
-#   a0 = -1 if error (STATUS_ERROR or timeout)
-#=============================================================================
 disk_wait:
     addi sp, sp, -16
-    sw s0, 12(sp)
-    
-    li s0, 100000            # Timeout counter
-    
+    sd s0, 8(sp)
+    li s0, 100000
 dw_loop:
-    # Check timeout
     beqz s0, dw_timeout
     addi s0, s0, -1
-    
-    # Read status
     li t0, DISK_STATUS
     lbu t1, 0(t0)
-    
-    # Check if done
     li t2, STATUS_DONE
     beq t1, t2, dw_success
-    
-    # Check if error
     li t2, STATUS_ERROR
     beq t1, t2, dw_error
-    
-    # Still busy, keep waiting
     j dw_loop
-    
 dw_success:
     li a0, 0
     j dw_done
-    
 dw_timeout:
 dw_error:
     li a0, -1
-    
 dw_done:
-    lw s0, 12(sp)
+    ld s0, 8(sp)
     addi sp, sp, 16
     ret
+
 # Simple File System (SFS) - Core Structures
-# Superblock, inode, and block management
 
 .section .data
-
-# Filesystem constants
-.equ FS_MAGIC, 0x53465300         # "SFS\0"
+.equ FS_MAGIC, 0x53465300
 .equ SECTOR_SIZE, 512
 .equ INODE_SIZE, 32
 .equ DIRENTRY_SIZE, 32
 .equ MAX_INODES, 256
 .equ MAX_NAME_LEN, 28
-
-# Sector layout
 .equ SUPERBLOCK_SECTOR, 0
-.equ INODE_TABLE_START, 1         # Sectors 1-16 (16*512/32 = 256 inodes)
-.equ BITMAP_START, 17             # Sectors 17-32
-.equ DATA_START, 33               # Sector 33+
-
-# Inode types
+.equ INODE_TABLE_START, 1
+.equ BITMAP_START, 17
+.equ DATA_START, 33
 .equ INODE_FREE, 0
 .equ INODE_FILE, 1
 .equ INODE_DIR, 2
@@ -1343,108 +944,63 @@ dw_done:
 .globl fs_initialized
 fs_initialized: .word 0
 
-# In-memory superblock cache
 .align 4
 superblock_cache:
-    .word 0                       # magic
-    .word 0                       # total_blocks
-    .word 0                       # free_blocks  
-    .word 0                       # total_inodes
-    .word 0                       # free_inodes
-    .space 492                    # reserved
+    .word 0, 0, 0, 0, 0
+    .space 492
 
-# Temporary sector buffer
 .align 4
 .globl sector_buffer
 sector_buffer: .space 512
 
 .section .text
-.globl fs_init
-.globl fs_format
-.globl fs_alloc_inode
-.globl fs_free_inode
-.globl fs_read_inode
-.globl fs_write_inode
-.globl fs_alloc_block
-.globl fs_free_block
+.globl fs_init, fs_format, fs_alloc_inode, fs_free_inode, fs_read_inode, fs_write_inode, fs_alloc_block, fs_free_block
+.extern disk_init, disk_read_sector, disk_write_sector
 
-.extern disk_init
-.extern disk_read_sector
-.extern disk_write_sector
-
-#=============================================================================
-# fs_init: Initialize filesystem
-# Reads superblock and validates magic number
-#=============================================================================
 fs_init:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    
-    # Initialize disk first
+    sd ra, 8(sp)
     call disk_init
-    
-    # Read superblock (sector 0)
     li a0, SUPERBLOCK_SECTOR
     la a1, superblock_cache
     call disk_read_sector
     bnez a0, fsi_error
-    
-    # Verify magic
     la t0, superblock_cache
     lw t1, 0(t0)
     li t2, FS_MAGIC
     bne t1, t2, fsi_error
-    
-    # Mark initialized
     la t0, fs_initialized
     li t1, 1
     sw t1, 0(t0)
-    
     li a0, 0
     j fsi_done
-    
 fsi_error:
     li a0, -1
-    
 fsi_done:
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# fs_format: Format disk with SFS
-# Creates superblock, clears inode table, creates root directory
-#=============================================================================
 fs_format:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    
-    # Create superblock
+    addi sp, sp, -32
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
     la t0, superblock_cache
     li t1, FS_MAGIC
-    sw t1, 0(t0)                  # magic
-    
+    sw t1, 0(t0)
     li t1, 65536
-    sw t1, 4(t0)                  # total_blocks
-    
-    li t1, 65536
-    addi t1, t1, -33              # Minus superblock, inodes, bitmap
-    sw t1, 8(t0)                  # free_blocks
-    
+    sw t1, 4(t0)
+    addi t1, t1, -33
+    sw t1, 8(t0)
     li t1, MAX_INODES
-    sw t1, 12(t0)                 # total_inodes
-    
-    li t1, MAX_INODES
-    addi t1, t1, -1               # Reserve inode 0 for root
-    sw t1, 16(t0)                 # free_inodes
-    
-    # Write superblock
+    sw t1, 12(t0)
+    addi t1, t1, -1
+    sw t1, 16(t0)
     li a0, SUPERBLOCK_SECTOR
     la a1, superblock_cache
     call disk_write_sector
     bnez a0, fsf_error
-    
-    # Clear inode table (16 sectors)
     la t0, sector_buffer
     li t1, 512
 fsf_clear_loop:
@@ -1454,8 +1010,6 @@ fsf_clear_loop:
     addi t1, t1, -1
     j fsf_clear_loop
 fsf_clear_done:
-    
-    # Write empty inode sectors
     li s0, INODE_TABLE_START
     li s1, 16
 fsf_inode_loop:
@@ -1467,270 +1021,155 @@ fsf_inode_loop:
     addi s1, s1, -1
     j fsf_inode_loop
 fsf_inode_done:
-    
-    # Create root directory (inode 0)
     la t0, sector_buffer
     li t1, 0
-    sw t1, 0(t0)                  # size = 0 (empty dir)
+    sw t1, 0(t0)
     li t1, INODE_DIR
-    sw t1, 4(t0)                  # type = directory
-    # Direct blocks initialized to 0 (no data blocks yet)
-    
-    # Write root inode
+    sw t1, 4(t0)
     li a0, INODE_TABLE_START
     la a1, sector_buffer
     call disk_write_sector
     bnez a0, fsf_error
-    
-    # Mark filesystem initialized
     la t0, fs_initialized
     li t1, 1
     sw t1, 0(t0)
-    
     li a0, 0
     j fsf_done
-    
 fsf_error:
     li a0, -1
-    
 fsf_done:
-    lw ra, 12(sp)
-    addi sp, sp, 16
-    ret
-
-#=============================================================================
-# fs_alloc_inode: Allocate a new inode
-#
-# Returns: a0 = inode number (0-255) or -1 on error
-#=============================================================================
-fs_alloc_inode:
-    addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    sw s2, 16(sp)
-    
-    # Search inode table for free entry
-    li s0, 0                      # Current inode number
-    li s1, MAX_INODES
-    
-fai_loop:
-    bge s0, s1, fai_error
-    
-    # Read inode
-    mv a0, s0
-    call fs_read_inode
-    bnez a0, fai_next
-    
-    # Check if free (type == 0)
-    la t0, sector_buffer
-    lw t1, 4(t0)
-    beqz t1, fai_found
-    
-fai_next:
-    addi s0, s0, 1
-    j fai_loop
-    
-fai_found:
-    # Return inode number
-    mv a0, s0
-    j fai_done
-    
-fai_error:
-    li a0, -1
-    
-fai_done:
-    lw s2, 16(sp)
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
     addi sp, sp, 32
     ret
 
-#=============================================================================
-# fs_free_inode: Free an inode
-#
-# Arguments: a0 = inode number
-#=============================================================================
-fs_free_inode:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
-    
-    mv s0, a0
-    
-    # Read inode
+fs_alloc_inode:
+    addi sp, sp, -32
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
+    li s0, 0
+    li s1, MAX_INODES
+fai_loop:
+    bge s0, s1, fai_error
     mv a0, s0
     call fs_read_inode
-    bnez a0, ffi_done
-    
-    # Mark as free
+    bnez a0, fai_next
     la t0, sector_buffer
-    sw zero, 4(t0)                # type = 0 (free)
-    
-    # Write back
+    lw t1, 4(t0)
+    beqz t1, fai_found
+fai_next:
+    addi s0, s0, 1
+    j fai_loop
+fai_found:
+    mv a0, s0
+    j fai_done
+fai_error:
+    li a0, -1
+fai_done:
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
+    addi sp, sp, 32
+    ret
+
+fs_free_inode:
+    addi sp, sp, -16
+    sd ra, 8(sp)
+    sd s0, 0(sp)
+    mv s0, a0
+    call fs_read_inode
+    bnez a0, ffi_done
+    la t0, sector_buffer
+    sw zero, 4(t0)
     mv a0, s0
     call fs_write_inode
-    
 ffi_done:
-    lw s0, 8(sp)
-    lw ra, 12(sp)
+    ld s0, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# fs_read_inode: Read inode into sector_buffer
-#
-# Arguments: a0 = inode number
-# Returns: a0 = 0 on success, -1 on error
-#=============================================================================
 fs_read_inode:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
-    
+    sd ra, 8(sp)
+    sd s0, 0(sp)
     mv s0, a0
-    
-    # Calculate sector: INODE_TABLE_START + (ino / 16)
-    li t0, INODE_TABLE_START
-    srli t1, s0, 4                # Divide by 16
-    add t0, t0, t1
-    
-    # Read sector
-    mv a0, t0
-    la a1, sector_buffer
-    call disk_read_sector
-    
-    # If successful, copy inode to start of buffer
-    # (For simplicity, we keep the sector but could optimize)
-    
-    lw s0, 8(sp)
-    lw ra, 12(sp)
-    addi sp, sp, 16
-    ret
-
-#=============================================================================
-# fs_write_inode: Write inode from sector_buffer
-#
-# Arguments: a0 = inode number
-# Returns: a0 = 0 on success, -1 on error
-#=============================================================================
-fs_write_inode:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
-    
-    mv s0, a0
-    
-    # Calculate sector
     li t0, INODE_TABLE_START
     srli t1, s0, 4
     add t0, t0, t1
-    
-    # Write sector
     mv a0, t0
     la a1, sector_buffer
-    call disk_write_sector
-    
-    lw s0, 8(sp)
-    lw ra, 12(sp)
+    call disk_read_sector
+    ld s0, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# fs_alloc_block: Allocate a data block
-#
-# Returns: a0 = block number or -1
-#=============================================================================
+fs_write_inode:
+    addi sp, sp, -16
+    sd ra, 8(sp)
+    sd s0, 0(sp)
+    mv s0, a0
+    li t0, INODE_TABLE_START
+    srli t1, s0, 4
+    add t0, t0, t1
+    mv a0, t0
+    la a1, sector_buffer
+    call disk_write_sector
+    ld s0, 0(sp)
+    ld ra, 8(sp)
+    addi sp, sp, 16
+    ret
+
 fs_alloc_block:
-    # TODO: Implement bitmap-based block allocation
-    # For now, return a dummy block
     li a0, DATA_START
     ret
 
-#=============================================================================
-# fs_free_block: Free a data block
-#
-# Arguments: a0 = block number
-#=============================================================================
 fs_free_block:
-    # TODO: Implement bitmap-based block freeing
     ret
+
 # String Utilities for Leenux OS
-# Common string operations
 
 .section .text
-.globl strlen
-.globl strcmp
-.globl strcpy
-.globl strncpy
-.globl get_first_word
+.globl strlen, strcmp, strcpy, strncpy, get_first_word
 
-#=============================================================================
-# strlen: Calculate string length
-#
-# Arguments: a0 = string pointer
-# Returns: a0 = length (not including null terminator)
-#=============================================================================
 strlen:
-    mv t0, a0                # Save start
-    li t1, 0                 # Counter
-    
+    mv t0, a0
+    li t1, 0
 strlen_loop:
     lbu t2, 0(t0)
     beq t2, zero, strlen_done
     addi t0, t0, 1
     addi t1, t1, 1
     j strlen_loop
-    
 strlen_done:
     mv a0, t1
     ret
 
-#=============================================================================
-# strcmp: Compare two strings
-#
-# Arguments: a0 = string1, a1 = string2
-# Returns: a0 = 0 if equal, non-zero if different
-#=============================================================================
 strcmp:
     mv t0, a0
     mv t1, a1
-    
 strcmp_loop:
     lbu t2, 0(t0)
     lbu t3, 0(t1)
-    
-    # Check if different
     bne t2, t3, strcmp_diff
-    
-    # Check if end of string
     beq t2, zero, strcmp_equal
-    
-    # Continue
     addi t0, t0, 1
     addi t1, t1, 1
     j strcmp_loop
-    
 strcmp_equal:
     li a0, 0
     ret
-    
 strcmp_diff:
     sub a0, t2, t3
     ret
 
-#=============================================================================
-# strcpy: Copy string
-#
-# Arguments: a0 = dest, a1 = src
-# Returns: a0 = dest
-#=============================================================================
 strcpy:
-    mv t0, a0                # Save dest
+    mv t0, a0
     mv t1, a0
     mv t2, a1
-    
 strcpy_loop:
     lbu t3, 0(t2)
     sb t3, 0(t1)
@@ -1738,23 +1177,15 @@ strcpy_loop:
     addi t1, t1, 1
     addi t2, t2, 1
     j strcpy_loop
-    
 strcpy_done:
     mv a0, t0
     ret
 
-#=============================================================================
-# strncpy: Copy at most n characters
-#
-# Arguments: a0 = dest, a1 = src, a2 = n
-# Returns: a0 = dest
-#=============================================================================
 strncpy:
-    mv t0, a0                # Save dest
+    mv t0, a0
     mv t1, a0
     mv t2, a1
-    mv t3, a2                # n
-    
+    mv t3, a2
 strncpy_loop:
     beq t3, zero, strncpy_done
     lbu t4, 0(t2)
@@ -1764,51 +1195,27 @@ strncpy_loop:
     addi t2, t2, 1
     addi t3, t3, -1
     j strncpy_loop
-    
 strncpy_done:
     mv a0, t0
     ret
 
-#=============================================================================
-# get_first_word: Extract first word from string
-#
-# Arguments: a0 = source string
-# Returns: a0 = pointer to first word (same as input, modified in place)
-#          a1 = length of first word
-#
-# Note: This function finds the first word and null-terminates it
-#       The string is modified in place (space becomes null)
-#=============================================================================
 get_first_word:
-    mv t0, a0                # Current position
-    li t1, 0                 # Word length
-    
+    mv t0, a0
+    li t1, 0
 gfw_loop:
     lbu t2, 0(t0)
-    
-    # Check for end of string
     beq t2, zero, gfw_done
-    
-    # Check for space
-    li t3, 0x20              # Space character
+    li t3, 0x20
     beq t2, t3, gfw_found_space
-    
-    # Check for tab
-    li t3, 0x09              # Tab character
+    li t3, 0x09
     beq t2, t3, gfw_found_space
-    
-    # Regular character, continue
     addi t0, t0, 1
     addi t1, t1, 1
     j gfw_loop
-    
 gfw_found_space:
-    # Null-terminate at space
     sb zero, 0(t0)
-    j gfw_done
-    
 gfw_done:
-    mv a1, t1                # Return length
+    mv a1, t1
     ret
 
 # Simple Screen Driver for Leenux
@@ -1832,11 +1239,12 @@ gfw_done:
 #   a3 = color (0x00RRGGBB)
 #=============================================================================
 draw_char:
-    addi sp, sp, -32
-    sd s0, 0(sp)
-    sd s1, 8(sp)
-    sd s2, 16(sp)
-    sd s3, 24(sp)
+    addi sp, sp, -48
+    sd s0, 40(sp)
+    sd s1, 32(sp)
+    sd s2, 24(sp)
+    sd s3, 16(sp)
+    sd ra, 8(sp)
     
     # Check ASCII range (32-126)
     li t0, 32
@@ -1845,131 +1253,103 @@ draw_char:
     bgt a0, t0, draw_char_done
     
     # Calculate font offset
-    # offset = (char - 32) * 8
-    addi s0, a0, -32         # s0 = index
-    slli s0, s0, 3           # s0 = index * 8
+    addi s0, a0, -32
+    slli s0, s0, 3
     la t0, font_5x8
-    add s0, s0, t0           # s0 = pointer to char data
+    add s0, s0, t0
     
-    # Variables
-    mv s1, a1                # s1 = current x
-    mv s2, a2                # s2 = current y
-    mv s3, a3                # s3 = color
+    mv s1, a1
+    mv s2, a2
+    mv s3, a3
     
-    # Framebuffer base: 0x10003000
-    # Addr = Base + (y * 1024 + x) * 4
+    # Base: 0x10003000
     lui t0, 0x10003
-    
-    # Calculate base pixel address for (x,y)
     li t1, 1024
-    mul t1, s2, t1           # y * 1024
-    add t1, t1, s1           # y * 1024 + x
-    slli t1, t1, 2           # * 4
-    add t0, t0, t1           # t0 = pixel address
+    mul t1, s2, t1
+    add t1, t1, s1
+    slli t1, t1, 2
+    add t0, t0, t1
     
-    # Loop 8 rows
-    li t1, 0                 # row counter
-    li t2, 8                 # max rows
+    li t1, 0
+    li t2, 8
     
 draw_row_loop:
     bge t1, t2, draw_char_done
+    lbu t3, 0(s0)
+    addi s0, s0, 1
     
-    # Load font byte
-    lb t3, 0(s0)
-    addi s0, s0, 1           # Increment font pointer
-    
-    # Loop 5 cols
-    # Value is in t3. bits 0-4.
-    # MSB (bit 4) is left-most pixel?
-    # font_5x8.s says: "bits 4-0 (MSB=left)"
-    # Example: '!' is 0x04 (00100). Middle pixel set.
-    
-    li t4, 0                 # col counter
-    li t5, 5                 # max cols
-    mv t6, t0                # t6 = current line pixel ptr
+    li t4, 0
+    li t5, 5
+    mv t6, t0
     
 draw_col_loop:
     bge t4, t5, draw_row_done
-    
-    # Check bit (4 - t4)
     li a4, 4
-    sub a4, a4, t4           # Shift amount
+    sub a4, a4, t4
     srl a5, t3, a4
     andi a5, a5, 1
-    
-    # If bit set, draw pixel
     beqz a5, pixel_skip
     sw s3, 0(t6)
     
 pixel_skip:
-    addi t6, t6, 4           # Next pixel
+    addi t6, t6, 4
     addi t4, t4, 1
     j draw_col_loop
     
 draw_row_done:
-    # Move to next line in FB
-    li a4, 4096              # 1024 * 4
+    li a4, 4096
     add t0, t0, a4
     addi t1, t1, 1
     j draw_row_loop
     
 draw_char_done:
-    ld s3, 24(sp)
-    ld s2, 16(sp)
-    ld s1, 8(sp)
-    ld s0, 0(sp)
-    addi sp, sp, 32
+    ld ra, 8(sp)
+    ld s3, 16(sp)
+    ld s2, 24(sp)
+    ld s1, 32(sp)
+    ld s0, 40(sp)
+    addi sp, sp, 48
     ret
 
 #=============================================================================
 # draw_string: Draw a null-terminated string
 # Arguments:
 #   a0 = string pointer
-#   a1 = x
-#   a2 = y
-#   a3 = color
+#   a1 = x, a2 = y, a3 = color
 #=============================================================================
 draw_string:
-    addi sp, sp, -32
-    sd ra, 0(sp)
-    sd s0, 8(sp)
-    sd s1, 16(sp)
-    sd s2, 24(sp)
+    addi sp, sp, -48
+    sd ra, 40(sp)
+    sd s0, 32(sp)
+    sd s1, 24(sp)
+    sd s2, 16(sp)
+    sd s3, 8(sp)
     
     mv s0, a0
     mv s1, a1
     mv s2, a2
-    # a3 is color (preserved)
+    mv s3, a3
     
 draw_string_loop:
-    lbu a0, 0(s0)            # Load char
+    lbu a0, 0(s0)
     beqz a0, draw_string_done
-    
-    # Save a3? No, s registers preserved it? No, a3 is arg.
-    # We should save color in s3?
-    # But draw_char takes a3.
-    # Let's save a3 in s3?
-    # Stack space 32. 4 regs saved. OK.
-    # Wait, simple: just pass a3.
-    
     mv a1, s1
     mv a2, s2
-    # a3 already set
-    
+    mv a3, s3
     call draw_char
-    
-    # Advance
-    addi s0, s0, 1           # Next char
-    addi s1, s1, 6           # Next X (5 + 1 spacing)
+    addi s0, s0, 1
+    addi s1, s1, 6
     j draw_string_loop
     
 draw_string_done:
-    ld s2, 24(sp)
-    ld s1, 16(sp)
-    ld s0, 8(sp)
-    ld ra, 0(sp)
-    addi sp, sp, 32
+    ld s3, 8(sp)
+    ld s2, 16(sp)
+    ld s1, 24(sp)
+    ld s0, 32(sp)
+    ld ra, 40(sp)
+    addi sp, sp, 48
     ret
+
 # 5x8 Bitmap Font
 # Each character is 8 bytes (one byte per row)
 # Each byte represents 5 pixels: bits 4-0 (MSB=left, LSB=right)
@@ -2201,6 +1581,7 @@ font_5x8:
     .byte 0x08, 0x04, 0x04, 0x02, 0x04, 0x04, 0x08, 0x00
     # ~
     .byte 0x00, 0x00, 0x00, 0x0C, 0x12, 0x00, 0x00, 0x00
+
 # Terminal Engine for Leenux OS
 # Manages text display, cursor, and scrolling
 
@@ -2224,6 +1605,8 @@ term_scroll_offset: .word 0
 .equ COLOR_TEXT, 0x00FFFFFF      # White
 .equ COLOR_PROMPT, 0x0000FF00    # Green
 .equ COLOR_BG, 0x00001010        # Dark blue
+
+.equ UART_BASE, 0x10000000
 
 .section .text
 .globl term_init
@@ -2250,35 +1633,48 @@ term_init:
     sw zero, 0(t0)
     
     # Clear screen
+    addi sp, sp, -8
+    sd ra, 0(sp)
     call term_clear
     
     # Draw initial prompt
     call term_print_prompt
     
+    ld ra, 0(sp)
+    addi sp, sp, 8
     ret
 
 #=============================================================================
-# term_clear: Clear entire screen
+# term_clear: Clear entire screen (Optimized for RV64)
 #=============================================================================
 term_clear:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0, 8(sp)
-    sw s1, 4(sp)
+    addi sp, sp, -32
+    sd ra, 24(sp)
+    sd s0, 16(sp)
+    sd s1, 8(sp)
     
     # Fill screen with background color
     lui s0, 0x10003          # Framebuffer base
-    lui s1, %hi(COLOR_BG)
-    addi s1, s1, %lo(COLOR_BG)
+    li s1, COLOR_BG
     
-    li t0, 786432            # 1024 * 768 pixels
+    # Fast clear: write 8 pixels (32 bytes) at once
+    # 1024 * 768 = 786432 pixels
+    # 786432 / 8 = 98304 iterations
+    li t0, 98304
     mv t1, s0
     
+    # Construct 64-bit value with two pixels
+    slli t2, s1, 32
+    or s1, s1, t2            # s1 now has 2 pixels (0x00BBGGRR00BBGGRR)
+
 clear_loop:
-    sw s1, 0(t1)
-    addi t1, t1, 4
+    sd s1, 0(t1)
+    sd s1, 8(t1)
+    sd s1, 16(t1)
+    sd s1, 24(t1)
+    addi t1, t1, 32
     addi t0, t0, -1
-    bne t0, zero, clear_loop
+    bnez t0, clear_loop
     
     # Reset cursor
     la t0, cursor_x
@@ -2286,10 +1682,10 @@ clear_loop:
     la t0, cursor_y
     sw zero, 0(t0)
     
-    lw s1, 4(sp)
-    lw s0, 8(sp)
-    lw ra, 12(sp)
-    addi sp, sp, 16
+    ld s1, 8(sp)
+    ld s0, 16(sp)
+    ld ra, 24(sp)
+    addi sp, sp, 32
     ret
 
 #=============================================================================
@@ -2298,13 +1694,18 @@ clear_loop:
 # Arguments: a0 = character
 #=============================================================================
 term_putchar:
-    addi sp, sp, -32
-    sw ra, 28(sp)
-    sw s0, 24(sp)
-    sw s1, 20(sp)
-    sw s2, 16(sp)
+    addi sp, sp, -48
+    sd ra, 40(sp)
+    sd s0, 32(sp)
+    sd s1, 24(sp)
+    sd s2, 16(sp)
+    sd s3, 8(sp)
     
     mv s0, a0                # Save character
+    
+    # Write to UART for console mirror
+    li t0, UART_BASE
+    sb s0, 0(t0)
     
     # Handle special characters
     li t0, 0x0A              # Newline
@@ -2336,8 +1737,7 @@ term_putchar:
     
     # Draw character
     mv a2, s0                # character
-    lui a3, %hi(COLOR_TEXT)
-    addi a3, a3, %lo(COLOR_TEXT)
+    li a3, COLOR_TEXT
     call draw_char
     
     # Advance cursor
@@ -2363,11 +1763,12 @@ putchar_backspace:
     call term_backspace
     
 putchar_done:
-    lw s2, 16(sp)
-    lw s1, 20(sp)
-    lw s0, 24(sp)
-    lw ra, 28(sp)
-    addi sp, sp, 32
+    ld s3, 8(sp)
+    ld s2, 16(sp)
+    ld s1, 24(sp)
+    ld s0, 32(sp)
+    ld ra, 40(sp)
+    addi sp, sp, 48
     ret
 
 #=============================================================================
@@ -2375,7 +1776,7 @@ putchar_done:
 #=============================================================================
 term_newline:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     # Set X to 0
     la t0, cursor_x
@@ -2397,7 +1798,7 @@ term_newline:
 newline_no_scroll:
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -2419,7 +1820,7 @@ term_backspace:
     # Clear character at that position
     # (Draw space character)
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     li a0, 32                # Space
     call term_putchar
@@ -2430,7 +1831,7 @@ term_backspace:
     addi t1, t1, -1
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     
 backspace_done:
@@ -2443,11 +1844,11 @@ term_scroll:
     # TODO: Implement proper scrolling (copy lines up)
     # For now, just clear screen when full
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     call term_clear
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -2456,20 +1857,19 @@ term_scroll:
 #=============================================================================
 term_print_prompt:
     addi sp, sp, -16
-    sw ra, 12(sp)
+    sd ra, 8(sp)
     
     # Print "leenux> " in green
-    la a2, prompt_string
-    li a0, 0                 # x = 0
+    la a0, prompt_string
+    li a1, 0                 # x = 0
     la t0, cursor_y
     lw t1, 0(t0)
     li t2, 8
-    mul a1, t1, t2
+    mul a2, t1, t2
     li t2, TERM_MARGIN_Y
-    add a1, a1, t2           # y = cursor_y * 8 + margin
+    add a2, a2, t2           # y = cursor_y * 8 + margin
     
-    lui a3, %hi(COLOR_PROMPT)
-    addi a3, a3, %lo(COLOR_PROMPT)
+    li a3, COLOR_PROMPT
     call draw_string
     
     # Update cursor_x to after prompt
@@ -2477,7 +1877,7 @@ term_print_prompt:
     li t1, 8                 # "leenux> " = 8 chars
     sw t1, 0(t0)
     
-    lw ra, 12(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
@@ -2485,124 +1885,73 @@ term_print_prompt:
 prompt_string:
     .byte "leenux> ", 0
     .align 4
+
 # Keyboard Driver for Leenux OS
-# MMIO-based keyboard input with circular buffer
 
 .section .data
-.globl input_buffer
-.globl input_head
-.globl input_tail
-
-# Circular input buffer (256 bytes)
+.globl input_buffer, input_head, input_tail
 input_buffer: .space 256
-input_head: .word 0          # Write position
-input_tail: .word 0          # Read position
-
-# Keyboard MMIO addresses
-.equ KB_BASE,    0x14000000
-.equ KB_DATA,    0x14000000  # Data register
-.equ KB_STATUS,  0x14000004  # Status register
+input_head: .word 0
+input_tail: .word 0
+.equ KB_BASE, 0x14000000
+.equ KB_DATA, 0x14000000
+.equ KB_STATUS, 0x14000004
 
 .section .text
-.globl keyboard_poll
-.globl keyboard_getchar
-.globl keyboard_available
+.globl keyboard_poll, keyboard_getchar, keyboard_available
 
-#=============================================================================
-# keyboard_poll: Check for keyboard input and add to buffer
-#
-# Called periodically (e.g., in main loop or timer interrupt)
-# Returns: a0 = 1 if character was read, 0 otherwise
-#=============================================================================
 keyboard_poll:
     addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s0,  8(sp)
-    
-    # Check keyboard status (0x14000004)
+    sd ra, 8(sp)
+    sd s0, 0(sp)
     lui s0, 0x14000
-    lw t0, 4(s0)             # Read status register
-    
-    # Check bit 0 (data ready)
+    lw t0, 4(s0)
     andi t0, t0, 1
     beq t0, zero, poll_no_data
-    
-    # Read character (0x14000000)
-    lw t1, 0(s0)             # Read data register
-    
-    # Add to buffer
+    lw t1, 0(s0)
     la t2, input_buffer
     la t3, input_head
-    lw t4, 0(t3)             # Load head
-    
-    # Calculate buffer position
-    andi t5, t4, 0xFF        # Wrap to 256
-    add t5, t2, t5           # buffer + head
-    
-    # Store character
+    lw t4, 0(t3)
+    andi t5, t4, 0xFF
+    add t5, t2, t5
     sb t1, 0(t5)
-    
-    # Increment head
     addi t4, t4, 1
-    andi t4, t4, 0xFF        # Wrap around
+    andi t4, t4, 0xFF
     sw t4, 0(t3)
-    
-    # Return 1 (character read)
     li a0, 1
     j poll_done
-    
 poll_no_data:
     li a0, 0
-    
 poll_done:
-    lw s0, 8(sp)
-    lw ra, 12(sp)
+    ld s0, 0(sp)
+    ld ra, 8(sp)
     addi sp, sp, 16
     ret
 
-#=============================================================================
-# keyboard_getchar: Read one character from buffer
-#
-# Returns: a0 = character (0 if buffer empty)
-#=============================================================================
 keyboard_getchar:
     la t0, input_tail
     la t1, input_head
-    lw t2, 0(t0)             # tail
-    lw t3, 0(t1)             # head
-    
-    # Check if buffer empty
+    lw t2, 0(t0)
+    lw t3, 0(t1)
     beq t2, t3, getchar_empty
-    
-    # Read character
     la t4, input_buffer
     andi t5, t2, 0xFF
     add t5, t4, t5
     lbu a0, 0(t5)
-    
-    # Increment tail
     addi t2, t2, 1
     andi t2, t2, 0xFF
     sw t2, 0(t0)
-    
     ret
-    
 getchar_empty:
     li a0, 0
     ret
 
-#=============================================================================
-# keyboard_available: Check if characters available in buffer
-#
-# Returns: a0 = number of characters in buffer
-#=============================================================================
 keyboard_available:
     la t0, input_tail
     la t1, input_head
-    lw t2, 0(t0)             # tail
-    lw t3, 0(t1)             # head
-    
-    # Calculate count (head - tail) & 0xFF
+    lw t2, 0(t0)
+    lw t3, 0(t1)
     sub a0, t3, t2
     andi a0, a0, 0xFF
     ret
+

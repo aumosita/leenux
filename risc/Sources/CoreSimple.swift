@@ -284,15 +284,15 @@ class CoreSimple {
             switch memSize {
             case 0:  // LB/LBU
                 if let val = memoryBus.read8(coreId: id, address: address) {
-                    value = memSigned ? UInt64(Int64(Int8(bitPattern: val))) : UInt64(val)
+                    value = memSigned ? UInt64(bitPattern: Int64(Int8(bitPattern: val))) : UInt64(val)
                 }
             case 1:  // LH/LHU
                 if let val = memoryBus.read16(coreId: id, address: address) {
-                    value = memSigned ? UInt64(Int64(Int16(bitPattern: val))) : UInt64(val)
+                    value = memSigned ? UInt64(bitPattern: Int64(Int16(bitPattern: val))) : UInt64(val)
                 }
             case 2:  // LW/LWU
                 if let val = memoryBus.read32(coreId: id, address: address) {
-                    value = memSigned ? UInt64(Int64(Int32(bitPattern: val))) : UInt64(val)
+                    value = memSigned ? UInt64(bitPattern: Int64(Int32(bitPattern: val))) : UInt64(val)
                 }
             case 3:  // LD
                 if let val = memoryBus.read64(coreId: id, address: address) {
@@ -507,7 +507,7 @@ class CoreSimple {
             loadReservation = address
             if size == 4 {
                 if let val = memoryBus.read32(coreId: id, address: address) {
-                    registers[Int(rd)] = UInt64(Int64(Int32(bitPattern: val)))
+                    registers[Int(rd)] = UInt64(bitPattern: Int64(Int32(bitPattern: val)))
                 }
             } else {
                 if let val = memoryBus.read64(coreId: id, address: address) {

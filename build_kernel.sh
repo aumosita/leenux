@@ -6,7 +6,7 @@ echo "🔨 Building Leenux Kernel..."
 # 1. Create temporary combined source file
 echo "   Concatenating sources..."
 # Order matters: Main program first (entry point), then dependencies
-cat kernel/shell_full.s \
+for f in kernel/shell_full.s \
     kernel/process.s \
     kernel/trap.s \
     kernel/timer.s \
@@ -16,8 +16,10 @@ cat kernel/shell_full.s \
     kernel/screen.s \
     kernel/font_5x8.s \
     kernel/terminal.s \
-    kernel/keyboard.s \
-    > kernel/kernel_build.s 2>/dev/null
+    kernel/keyboard.s; do
+    cat "$f"
+    echo "" # Add newline to prevent line merging
+done > kernel/kernel_build.s
 
 # Check if cat succeeded
 if [ ! -f kernel/kernel_build.s ]; then
@@ -27,7 +29,7 @@ fi
 
 # 2. Assemble
 echo "   Assembling..."
-python3 Tools/simple_assembler.py kernel/kernel_build.s kernel/kernel.bin
+python3 Tools/simple_assembler.py kernel/kernel_build.s kernel/kernel.bin 0x1000
 
 # 3. Validation
 if [ -f kernel/kernel.bin ]; then

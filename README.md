@@ -36,21 +36,27 @@ Leenux is a from-scratch operating system targeting RISC-V 64-bit architecture, 
 ### Build & Run
 
 ```bash
-# Build emulator
+# Build kernel
+./build_kernel.sh
+
+# Build emulator (requires Swift 5.5+)
 cd risc && swift build -c release && cd ..
 cp risc/.build/release/risc-emulator bin/
 
-# Run shell with persistence
-./bin/risc-emulator kernel/kernel.bin
+# Run shell (requires sufficient cycles for framebuffer init)
+./bin/risc-emulator kernel/kernel.bin --max-cycles 10000000 --memory 256
 ```
 
 ### Expected Output
 ```
-Welcome to Leenux Shell!
-leenux> ls
-ID  Type  Size Name
-1   FILE  0    hello.txt
+Welcome to Leenux Shell (Preemptive)!
+Type 'help' for commands.
 ```
+
+### Performance Notes
+- Initial boot requires ~5 million cycles for framebuffer initialization
+- Framebuffer clear: 1024×768 pixels = 98,304 iterations
+- UART output works immediately; keyboard input requires GUI Terminal or stdin fix
 
 ## 🏗️ Architecture
 
@@ -135,5 +141,11 @@ swift test/test_persistence.swift
 
 **Built with ❤️ for learning and exploration**
 
-Last Updated: 2026-02-07  
+Last Updated: 2026-02-14  
 Version: 0.8 (Phase 8 Complete)
+
+## 🔍 Known Issues
+
+- **Stdin Input**: FileHandle.standardInput.readabilityHandler not routing to KeyboardDevice
+  - Workaround: Use Swift Terminal GUI or modify emulator for auto-input
+- **Framebuffer Init**: ~5M cycles required for 1024×768 clear (normal for emulator with MMIO locks)

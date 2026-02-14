@@ -48,6 +48,11 @@ cmd_print_char:
     lw a1, 4(t0)          # Load char from arg0
     li a0, 0x10000000     # UART base
     sb a1, 0(a0)
+    
+    # Debug: Also print '.' to show command was processed
+    li a1, '.'
+    sb a1, 0(a0)
+    
     j clear_command
 
 cmd_write_pixel:

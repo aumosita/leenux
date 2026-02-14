@@ -110,6 +110,11 @@ class SharedMemory {
         
         // MMIO 디바이스 체크
         if let (device, offset) = findDevice(for: address) {
+            // DEBUG: Log UART writes
+            if device.baseAddress == 0x10000000 {
+                fputs("[SM:UART:\(value)]", stderr)
+                fflush(stderr)
+            }
             return device.write8(offset: offset, value: value)
         }
         

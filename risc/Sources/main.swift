@@ -130,6 +130,13 @@ func main() {
         print("💾 Memory size: \(memorySizeMB) MB")
     }
     
+    // Parse asymmetric mode (io-core)
+    var ioCorePath: String? = nil
+    if let ioCoreIndex = arguments.firstIndex(of: "--io-core"),
+       ioCoreIndex + 1 < arguments.count {
+        ioCorePath = arguments[ioCoreIndex + 1]
+    }
+    
     // Load program (skip for test mode)
     var program: [UInt8] = []
     if !isTestMode {
@@ -151,10 +158,23 @@ func main() {
     let system = MultiCoreSystem(numCores: numCores, memorySize: memorySize)
     system.debug = debug
     
-    // Load program only if not in test mode
+    // Load programs
     if !isTestMode {
-        guard system.loadProgram(at: 0x1000, data: program) else {
-            exit(1)
+        if let ioPath = ioCorePath, numCores >= 2 {
+            // Asymmetric mode: Different programs for each core
+            print("\n🔀 Asymmetric Multi-Processing Mode")
+            let programs = [
+                (coreId: 0, path: filePath, address: 0x1000 as UInt64),
+                (coreId: 1, path: ioPath, address: 0x1000 as UInt64)
+            ]
+            guard system.loadAsymmetricPrograms(programs: programs) else {
+                exit(1)
+            }
+        } else {
+            // Symmetric mode: Same program for all cores
+            guard system.loadProgram(at: 0x1000, data: program) else {
+                exit(1)
+            }
         }
     }
 

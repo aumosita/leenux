@@ -115,6 +115,11 @@ class MultiCoreSystem {
             print("🔌 Registered MMIO device: Disk at 0x15000000")
         }
         
+        // Command Queue Device (for inter-core communication)
+        let cmdQueue = CommandQueueDevice()
+        memoryBus.memory.registerDevice(cmdQueue)
+        print("🔌 Registered MMIO device: CommandQueue at 0x20000000")
+        
         // Interrupt Routing (Wire Timer -> Core 0 MIP.MTIP (Bit 7))
         if let timer = self.timer, !cores.isEmpty {
             timer.onInterrupt = { [weak self] active in
@@ -176,6 +181,40 @@ class MultiCoreSystem {
             print("❌ Failed to load file: \(error)")
             return false
         }
+    }
+    
+    /// Load different programs for each core (Asymmetric Multi-Processing)
+    /// - Parameters:
+    ///   - programs: Array of (coreId, filePath, address) tuples
+    /// - Returns: Success status
+    func loadAsymmetricPrograms(programs: [(coreId: Int, path: String, address: UInt64)]) -> Bool {
+        for (coreId, path, address) in programs {
+            guard coreId < numCores else {
+                print("❌ Invalid core ID: \(coreId)")
+                return false
+            }
+            
+            do {
+                let url = URL(fileURLWithPath: path)
+                let data = try Data(contentsOf: url)
+                
+                // Load to memory
+                guard memoryBus.loadProgram(at: address, data: Array(data)) else {
+                    print("❌ Failed to load program for Core \(coreId)")
+                    return false
+                }
+                
+                // Set core PC
+                cores[coreId].pc = address
+                
+                print("📂 Core \(coreId): Loaded \(path) at 0x\(String(format: "%X", address)) (\(data.count) bytes)")
+            } catch {
+                print("❌ Failed to load file for Core \(coreId): \(error)")
+                return false
+            }
+        }
+        
+        return true
     }
     
     // MARK: - Execution

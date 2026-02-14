@@ -89,7 +89,7 @@ class CoreSimple {
     var branchesNotTaken: Int = 0
     var stallsDetected: Int = 0
     var branchMispredictions: Int = 0
-    var branchPredictor: BranchPredictor = BranchPredictor()
+    var branchPredictor = TwoBitBranchPredictor()
     
     // MARK: - Initialization
     
@@ -443,6 +443,9 @@ class CoreSimple {
         let b = registers[Int(rs2)]
         var taken = false
         
+        // Predict branch outcome
+        let predicted = branchPredictor.predict(pc: pc)
+        
         switch funct3 {
         case 0x0: taken = (a == b)  // BEQ
         case 0x1: taken = (a != b)  // BNE
@@ -453,8 +456,16 @@ class CoreSimple {
         default: break
         }
         
+        // Update predictor with actual outcome
+        branchPredictor.update(pc: pc, actualTaken: taken)
+        
+        // Track mispredictions
+        if predicted != taken {
+            branchMispredictions += 1
+        }
+        
         if debug {
-            print("[Core \(id)] Branch: funct3=0x\(String(format: "%X", funct3)), a=\(a), b=\(b), taken=\(taken)")
+            print("[Core \(id)] Branch: funct3=0x\(String(format: "%X", funct3)), a=\(a), b=\(b), taken=\(taken), predicted=\(predicted)")
         }
         
         if taken {
@@ -596,6 +607,17 @@ class CoreSimple {
         print("  Instructions: \(instructionsExecuted)")
         print("  CPI: \(cyclesExecuted > 0 ? Double(cyclesExecuted) / Double(max(instructionsExecuted, 1)) : 0)")
         print("  Branches: \(branchesTaken) taken, \(branchesNotTaken) not taken")
+        
+        let totalBranches = branchesTaken + branchesNotTaken
+        if totalBranches > 0 {
+            print("\n  Branch Predictor:")
+            print("    Predictions: \(branchPredictor.predictions)")
+            print("    Correct: \(branchPredictor.correct)")
+            print("    Incorrect: \(branchPredictor.incorrect)")
+            print("    Accuracy: \(String(format: "%.1f%%", branchPredictor.accuracy))")
+            print("    Unique Branches: \(branchPredictor.uniqueBranches)")
+        }
+        
         print("  Halted: \(halted)")
         
         if let cache = l1Cache {

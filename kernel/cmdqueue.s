@@ -27,19 +27,10 @@
 cmdq_print_char:
     li t0, CMDQ_BASE
     
-    # Wait for queue to be free
-1:  lw t1, CMDQ_TYPE(t0)
-    bnez t1, 1b           # Spin if busy
-    
-    # Write command
+    # Write command (no busy-wait for now)
     sw a0, CMDQ_ARG0(t0)  # Store char
     li t1, CMD_PRINT_CHAR
     sw t1, CMDQ_TYPE(t0)  # Trigger command
-    
-    # Small delay to let I/O core process
-    li t2, 10
-2:  addi t2, t2, -1
-    bnez t2, 2b
     
     ret
 

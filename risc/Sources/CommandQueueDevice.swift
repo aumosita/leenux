@@ -32,13 +32,22 @@ class CommandQueueDevice: MMIODevice {
     }
     
     func read32(offset: UInt64) -> UInt32? {
+        let val: UInt32
         switch offset {
-        case 0x00: return commandType
-        case 0x04: return arg0
-        case 0x08: return arg1
-        case 0x0C: return arg2
-        default: return 0
+        case 0x00: val = commandType
+        case 0x04: val = arg0
+        case 0x08: val = arg1
+        case 0x0C: val = arg2
+        default: val = 0
         }
+        
+        // DEBUG: Log command reads
+        if offset == 0x00 && val != 0 {
+            fputs("[CQ:READ=\(val)]", stderr)
+            fflush(stderr)
+        }
+        
+        return val
     }
     
     func read64(offset: UInt64) -> UInt64? {
@@ -69,6 +78,11 @@ class CommandQueueDevice: MMIODevice {
         switch offset {
         case 0x00:
             commandType = value
+            // DEBUG: Log command writes
+            if value != 0 {
+                fputs("[CQ:TYPE=\(value)]", stderr)
+                fflush(stderr)
+            }
         case 0x04:
             arg0 = value
         case 0x08:

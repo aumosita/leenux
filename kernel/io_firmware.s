@@ -30,6 +30,11 @@ io_loop:
     
     beqz t1, io_loop      # If 0 (NOP), loop
     
+    # DEBUG: Print '[' to show we got a command
+    li a0, 0x10000000
+    li a1, 91             # '['
+    sb a1, 0(a0)
+    
     # 2. Process command based on type
     li t2, 1
     beq t1, t2, cmd_print_char
@@ -48,6 +53,11 @@ cmd_print_char:
     lw a1, 4(t0)          # Load char from arg0
     li a0, 0x10000000     # UART base
     sb a1, 0(a0)
+    
+    # DEBUG: Print ']' to show we processed it
+    li a1, 93             # ']'
+    sb a1, 0(a0)
+    
     j clear_command
 
 cmd_write_pixel:

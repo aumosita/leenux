@@ -7,6 +7,7 @@ echo "🔨 Building Leenux Kernel..."
 echo "   Concatenating sources..."
 # Order matters: Main program first (entry point), then dependencies
 for f in kernel/shell_full.s \
+    kernel/cmdqueue.s \
     kernel/process.s \
     kernel/trap.s \
     kernel/timer.s \

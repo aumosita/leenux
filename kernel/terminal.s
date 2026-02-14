@@ -119,9 +119,8 @@ term_putchar:
     
     mv s0, a0                # Save character
     
-    # Write to UART for console mirror
-    li t0, UART_BASE
-    sb s0, 0(t0)
+    # Write to UART via Command Queue (Core 1 will handle it)
+    call cmdq_print_char
     
     # Handle special characters
     li t0, 0x0A              # Newline

@@ -10,11 +10,11 @@ _start:
     
     # Print startup message
     li a0, 0x10000000     # UART base
-    li a1, 'C'
+    li a1, 67             # 'C'
     sb a1, 0(a0)
-    li a1, '0'
+    li a1, 48             # '0'
     sb a1, 0(a0)
-    li a1, '\n'
+    li a1, 10             # '\n'
     sb a1, 0(a0)
     
     # Command Queue test
@@ -23,7 +23,7 @@ _start:
     # Command 1: Print 'A'
     li t1, 1              # Command type: PRINT_CHAR
     sw t1, 0(t0)          # Write command type
-    li t1, 'A'
+    li t1, 65             # 'A'
     sw t1, 4(t0)          # Write char
     
     # Wait a bit (simple delay)
@@ -38,7 +38,7 @@ delay1:
     # Command 2: Print 'B'
     li t1, 1
     sw t1, 0(t0)
-    li t1, 'B'
+    li t1, 66             # 'B'
     sw t1, 4(t0)
     
     # Wait
@@ -53,7 +53,7 @@ delay2:
     # Command 3: Print '!' and newline
     li t1, 1
     sw t1, 0(t0)
-    li t1, '!'
+    li t1, 33             # '!'
     sw t1, 4(t0)
     
     li t2, 10000
@@ -65,7 +65,7 @@ delay3:
     
     li t1, 1
     sw t1, 0(t0)
-    li t1, '\n'
+    li t1, 10             # '\n'
     sw t1, 4(t0)
 
 # Infinite loop

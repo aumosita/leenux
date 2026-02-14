@@ -1,17 +1,19 @@
 /// Shared Memory Command Queue Device
 /// 
 /// MMIO device that provides command queue interface
-/// for inter-core communication
+/// for inter-core communication (thread-safe)
 class CommandQueueDevice: MMIODevice {
     let name = "CommandQueue"
     let baseAddress: UInt64 = 0x20000000
     let size: UInt64 = 0x1000  // 4KB
     
-    // Command structure (16 bytes)
+    // Command structure (16 bytes) - thread-safe with lock
     private var commandType: UInt32 = 0
     private var arg0: UInt32 = 0
     private var arg1: UInt32 = 0
     private var arg2: UInt32 = 0
+    
+    private let lock = NSLock()
     
     func contains(address: UInt64) -> Bool {
         return address >= baseAddress && address < baseAddress + size
@@ -32,6 +34,9 @@ class CommandQueueDevice: MMIODevice {
     }
     
     func read32(offset: UInt64) -> UInt32? {
+        lock.lock()
+        defer { lock.unlock() }
+        
         let val: UInt32
         switch offset {
         case 0x00: val = commandType
@@ -39,12 +44,6 @@ class CommandQueueDevice: MMIODevice {
         case 0x08: val = arg1
         case 0x0C: val = arg2
         default: val = 0
-        }
-        
-        // DEBUG: Log command reads
-        if offset == 0x00 && val != 0 {
-            fputs("[CQ:READ=\(val)]", stderr)
-            fflush(stderr)
         }
         
         return val
@@ -75,14 +74,12 @@ class CommandQueueDevice: MMIODevice {
     }
     
     func write32(offset: UInt64, value: UInt32) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        
         switch offset {
         case 0x00:
             commandType = value
-            // DEBUG: Log command writes
-            if value != 0 {
-                fputs("[CQ:TYPE=\(value)]", stderr)
-                fflush(stderr)
-            }
         case 0x04:
             arg0 = value
         case 0x08:

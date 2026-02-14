@@ -141,12 +141,6 @@ class SharedMemory {
         lock.lock()
         defer { lock.unlock() }
         
-        // DEBUG: Log 0x20000000 accesses
-        if address == 0x20000000 {
-            fputs("[SM:0x20000000=\(value)]", stderr)
-            fflush(stderr)
-        }
-        
         // MMIO 디바이스 체크
         if let (device, offset) = findDevice(for: address) {
             return device.write32(offset: offset, value: value)

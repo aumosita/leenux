@@ -3,11 +3,11 @@ import Foundation
 /// LRU 캐시 노드
 class LRUCacheNode {
     let key: UInt32
-    let value: Instruction
+    let value: InstructionType
     var prev: LRUCacheNode?
     var next: LRUCacheNode?
     
-    init(key: UInt32, value: Instruction) {
+    init(key: UInt32, value: InstructionType) {
         self.key = key
         self.value = value
     }
@@ -31,7 +31,7 @@ class LRUDecodeCache {
     }
     
     /// 캐시 조회 (O(1))
-    func get(_ key: UInt32) -> Instruction? {
+    func get(_ key: UInt32) -> InstructionType? {
         guard let node = cache[key] else {
             misses += 1
             return nil
@@ -43,7 +43,7 @@ class LRUDecodeCache {
     }
     
     /// 캐시 삽입 (O(1))
-    func put(_ key: UInt32, _ value: Instruction) {
+    func put(_ key: UInt32, _ value: InstructionType) {
         // 이미 존재하면 갱신 (MRU로 이동)
         if let existing = cache[key] {
             moveToFront(existing)

@@ -118,8 +118,12 @@ func platformMemoryBarrier() {
         _ = pthread_mutex_t()
     }
     #elseif os(Linux) || os(FreeBSD)
-    // Linux and BSD use compiler barrier
-    asm("mfence" ::: "memory")
+    // Linux and BSD: use mutex as memory barrier
+    var mutex = pthread_mutex_t()
+    pthread_mutex_init(&mutex, nil)
+    pthread_mutex_lock(&mutex)
+    pthread_mutex_unlock(&mutex)
+    pthread_mutex_destroy(&mutex)
     #else
     // Generic: use mutex as barrier
     var mutex = pthread_mutex_t()
@@ -154,17 +158,17 @@ class PlatformThread {
     private var thread: pthread_t?
     
     func start(_ body: @escaping () -> Void) {
-        var threadPtr: pthread_t?
         let context = UnsafeMutablePointer<() -> Void>.allocate(capacity: 1)
         context.initialize(to: body)
         
-        pthread_create(&threadPtr, nil, { contextPtr in
+        var thread = pthread_t()
+        pthread_create(&thread, nil, { contextPtr in
             let body = contextPtr!.assumingMemoryBound(to: (() -> Void).self).pointee
             body()
             return nil
         }, context)
         
-        self.thread = threadPtr
+        self.thread = thread
     }
     
     func join() {

@@ -331,8 +331,10 @@ class MultiCoreSystem {
         memoryBus.printStats()
         print("")
         print("Branch Prediction:")
-        if core.branchPredictor.totalPredictions > 0 {
-            core.branchPredictor.printStats()
+        if core.branchPredictor.predictions > 0 {
+            print("  Predictions: \(core.branchPredictor.predictions)")
+            print("  Correct: \(core.branchPredictor.correct)")
+            print("  Accuracy: \(String(format: "%.1f%%", core.branchPredictor.accuracy))")
         } else {
             print("  No branch predictions")
         }
@@ -360,7 +362,7 @@ class MultiCoreSystem {
             print("  Stalls: \(core.stallsDetected)")
             print("  Branches: \(core.branchesTaken) taken, \(core.branchesNotTaken) not taken")
             print("  Branch mispredictions: \(core.branchMispredictions)")
-            if core.branchPredictor.totalPredictions > 0 {
+            if core.branchPredictor.predictions > 0 {
                 print("  Branch prediction accuracy: \(String(format: "%.2f", core.branchPredictor.accuracy))%")
             }
             print("  Halted: \(core.halted)")
@@ -391,8 +393,8 @@ class MultiCoreSystem {
         var totalBranchPredictions = 0
         var totalCorrectPredictions = 0
         for core in cores {
-            totalBranchPredictions += core.branchPredictor.totalPredictions
-            totalCorrectPredictions += core.branchPredictor.correctPredictions
+            totalBranchPredictions += core.branchPredictor.predictions
+            totalCorrectPredictions += core.branchPredictor.correct
         }
         if totalBranchPredictions > 0 {
             let overallAccuracy = Double(totalCorrectPredictions) / Double(totalBranchPredictions) * 100.0
@@ -426,7 +428,7 @@ class MultiCoreSystem {
             print("  Stalls: \(core.stallsDetected)")
             print("  Branches: \(core.branchesTaken) taken, \(core.branchesNotTaken) not taken")
             print("  Branch mispredictions: \(core.branchMispredictions)")
-            if core.branchPredictor.totalPredictions > 0 {
+            if core.branchPredictor.predictions > 0 {
                 print("  Branch prediction accuracy: \(String(format: "%.2f", core.branchPredictor.accuracy))%")
             }
             print("  Halted: \(core.halted)")
@@ -468,8 +470,8 @@ class MultiCoreSystem {
         var totalBranchPredictions = 0
         var totalCorrectPredictions = 0
         for core in cores {
-            totalBranchPredictions += core.branchPredictor.totalPredictions
-            totalCorrectPredictions += core.branchPredictor.correctPredictions
+            totalBranchPredictions += core.branchPredictor.predictions
+            totalCorrectPredictions += core.branchPredictor.correct
         }
         if totalBranchPredictions > 0 {
             let overallAccuracy = Double(totalCorrectPredictions) / Double(totalBranchPredictions) * 100.0

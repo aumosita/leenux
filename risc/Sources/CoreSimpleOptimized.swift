@@ -4,8 +4,9 @@ import Foundation
 /// 
 /// Key optimizations:
 /// 1. Batch execution - reduces function call overhead
-/// 2. Decode caching - avoids repeated decoding
-/// 3. Early exit optimizations
+/// 2. LRU decode caching - avoids repeated decoding
+/// 3. Memory block caching - reduces memory bus access
+/// 4. Early exit optimizations
 class CoreSimpleOptimized {
     let id: Int
     var pc: UInt64
@@ -96,7 +97,7 @@ class CoreSimpleOptimized {
         var fetchPC = pc
         
         for _ in 0..<bufferSize {
-            guard let instruction = memoryCache.read32(fetchPC) else {
+            guard let instruction = memoryCache.read32(address: fetchPC) else {
                 break
             }
             instrBuffer.append(instruction)
@@ -105,12 +106,12 @@ class CoreSimpleOptimized {
     }
     
     private func fetch() -> UInt32 {
-        return memoryCache.read32(pc) ?? 0
+        return memoryCache.read32(address: pc) ?? 0
     }
     
     // MARK: - Decode with LRU Caching
     
-    private func decodeCached(_ raw: UInt32) -> Instruction {
+    private func decodeCached(_ raw: UInt32) -> InstructionType {
         if let cached = decodeCache.get(raw) {
             return cached
         }
@@ -123,7 +124,7 @@ class CoreSimpleOptimized {
     
     // MARK: - Execute (Optimized)
     
-    private func executeInstruction(_ instruction: Instruction, at instrPC: UInt64) {
+    private func executeInstruction(_ instruction: InstructionType, at instrPC: UInt64) {
         switch instruction {
         case .rType(let opcode, let rd, let funct3, let rs1, let rs2, let funct7):
             // Early exit if rd == 0
@@ -140,9 +141,9 @@ class CoreSimpleOptimized {
             switch (funct7, funct3) {
             case (0x00, 0x0): result = a &+ b  // ADD
             case (0x20, 0x0): result = a &- b  // SUB
-            case (0x00, 0x4): result = a ^ b   // XOR
-            case (0x00, 0x6): result = a | b   // OR
-            case (0x00, 0x7): result = a & b   // AND
+            case (0x00, 0x4): result = a ^ UInt64(b)   // XOR
+            case (0x00, 0x6): result = a | UInt64(b)   // OR
+            case (0x00, 0x7): result = a & UInt64(b)   // AND
             case (0x00, 0x1): result = a << (b & 0x3F)  // SLL
             case (0x00, 0x5): result = a >> (b & 0x3F)  // SRL
             case (0x20, 0x5): result = UInt64(bitPattern: Int64(bitPattern: a) >> Int(b & 0x3F))  // SRA
@@ -160,7 +161,7 @@ class CoreSimpleOptimized {
                     result = UInt64(bitPattern: aInt / bInt)
                 }
             case (0x01, 0x5):  // DIVU
-                result = b == 0 ? UInt64.max : a / b
+                result = b == 0 ? UInt64.max : (a / b)
             case (0x01, 0x6):  // REM
                 if b == 0 {
                     result = a
@@ -170,7 +171,7 @@ class CoreSimpleOptimized {
                     result = UInt64(bitPattern: aInt % bInt)
                 }
             case (0x01, 0x7):  // REMU
-                result = b == 0 ? a : a % b
+                result = b == 0 ? a : (a % b)
                 
             default:
                 if debug { print("[Core \(id)] Unknown R-type") }
